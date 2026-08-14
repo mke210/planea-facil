@@ -350,7 +350,7 @@ const emptyPlan = (pr = {}) => ({
   campoFormativo: "", asignatura: "", contenidoSintetico: "", pda: "",
   metodologia: "", problemaEntorno: "", ejesArticuladores: [],
   propositoGeneral: "", propositosEspecificos: "", aprendizajesEsperados: "",
-  inicio: "", desarrollo: "", cierre: "",
+  nombreActividad: "", inicio: "", desarrollo: "", cierre: "",
   recursos: "", espacios: "",
   instrumentosEvaluacion: "", criteriosEvaluacion: "", observaciones: "",
   nombreElabora: pr.docente || "",
@@ -358,6 +358,96 @@ const emptyPlan = (pr = {}) => ({
   nombreDirector: pr.nombreDirector || "",
   createdAt: new Date().toLocaleDateString("es-MX"),
 });
+
+/* ── CARGA MASIVA: utilidades CSV ─────────────────────────────────────────────
+   Formato esperado (columnas, en este orden):
+   Tema, Actividad, Inicio, Desarrollo, Cierre, PDA
+   - "Tema": si ya existe (mismo nombre, sin importar mayúsculas) se reutiliza y
+     la actividad se agrega dentro de él; si no existe, se crea.
+   - "Actividad" respeta el orden de campos: nombre, inicio, desarrollo, cierre.
+   - "PDA": si el texto ya existe en el banco de PDAs del Nivel/Grado/Asignatura
+     seleccionado, se ignora (evita duplicados); si es nuevo, se une a la lista
+     ya existente sin borrar los PDAs previos.
+──────────────────────────────────────────────────────────────────────────── */
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  const clean = (text||"").replace(/^\ufeff/, "");
+  for (let i = 0; i < clean.length; i++) {
+    const c = clean[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (clean[i+1] === '"') { field += '"'; i++; }
+        else { inQuotes = false; }
+      } else { field += c; }
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ""; }
+      else if (c === '\r') { /* ignore, \n handles the break */ }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ""; }
+      else field += c;
+    }
+  }
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => (c||"").trim() !== ""));
+}
+
+function parseBulkTopicsCSV(text) {
+  const rows = parseCSV(text);
+  if (!rows.length) return { error: "El archivo está vacío." };
+  const header = rows[0].map(h => (h||"").trim().toLowerCase());
+  const findCol = (...names) => names.map(n => header.indexOf(n)).find(i => i >= 0) ?? -1;
+  const idx = {
+    tema: findCol("tema"),
+    actividad: findCol("actividad", "nombre de la actividad"),
+    inicio: findCol("inicio"),
+    desarrollo: findCol("desarrollo"),
+    cierre: findCol("cierre"),
+    pda: findCol("pda", "pdas"),
+  };
+  if (idx.tema < 0 || idx.actividad < 0) {
+    return { error: "El archivo debe tener al menos las columnas 'Tema' y 'Actividad'. Descarga la plantilla para ver el formato correcto." };
+  }
+  const records = rows.slice(1).map(r => ({
+    tema: (r[idx.tema]||"").trim(),
+    actividad: (r[idx.actividad]||"").trim(),
+    inicio: idx.inicio>=0 ? (r[idx.inicio]||"").trim() : "",
+    desarrollo: idx.desarrollo>=0 ? (r[idx.desarrollo]||"").trim() : "",
+    cierre: idx.cierre>=0 ? (r[idx.cierre]||"").trim() : "",
+    pda: idx.pda>=0 ? (r[idx.pda]||"").trim() : "",
+  })).filter(rec => rec.tema && rec.actividad);
+  if (!records.length) return { error: "No se encontraron filas válidas (revisa que 'Tema' y 'Actividad' no estén vacíos)." };
+  return { records };
+}
+
+let __bulkIdSeq = 0;
+const nextBulkId = () => Date.now() + "_" + (__bulkIdSeq++);
+
+function downloadCSVTemplate() {
+  const header = ["Tema","Actividad","Inicio","Desarrollo","Cierre","PDA"];
+  const sample = [
+    ["Fracciones","Introducción a fracciones con material concreto",
+     "Preguntas detonadoras: ¿en cuántas partes se puede repartir una pizza? Exploración de conocimientos previos.",
+     "En equipos, los estudiantes representan fracciones con tiras de papel y las comparan entre sí.",
+     "Puesta en común de resultados y registro en el cuaderno. Tarea: buscar 3 ejemplos de fracciones en casa.",
+     "Resuelve problemas que impliquen el uso de fracciones en contextos cotidianos"],
+    ["Fracciones","Suma y resta de fracciones",
+     "Recuperación de la sesión anterior mediante preguntas rápidas.",
+     "Resolución guiada de sumas y restas de fracciones con igual y distinto denominador.",
+     "Autoevaluación breve y retroalimentación grupal.",
+     "Resuelve problemas que impliquen el uso de fracciones en contextos cotidianos"],
+  ];
+  const esc = v => {
+    const s = String(v==null?"":v);
+    return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+  };
+  const csv = [header, ...sample].map(r => r.map(esc).join(",")).join("\r\n");
+  const blob = new Blob(["\ufeff"+csv], { type:"text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url;
+  a.download = "plantilla_temas_actividades_pda.csv";
+  a.click(); URL.revokeObjectURL(url);
+}
 
 /* ── ATOMS ─────────────────────────────────────────────────────────────────── */
 const S = { width:"100%", padding:"9px 12px", border:"1.5px solid #dce6f0", borderRadius:8, fontSize:13, fontFamily:"inherit", background:"#fafcfe", outline:"none", boxSizing:"border-box", color:"#2c3e50" };
@@ -585,6 +675,7 @@ function buildDocHtml(pl) {
 <!-- ── SECUENCIA DIDÁCTICA ── -->
 <table>
   <tr><td colspan="3" style="${TH(C.seq)}">📚 Secuencia Didáctica</td></tr>
+  <tr><td colspan="3" style="background:${C.seq.lt};font-weight:700;font-size:9.5pt;padding:8px 14px;border:1px solid ${C.seq.bd};color:#1a2035;">📌 Nombre de la Actividad: <span style="font-weight:800;">${val(pl.nombreActividad)}</span></td></tr>
 </table>
 <table class="seq-wrap">
   <tr>
@@ -1568,12 +1659,19 @@ const PlanForm = ({ plan, onSave, onBack, onPrint, exercises }) => {
             grado={p.grado}
             asignatura={p.asignatura}
             onSelect={(act, temaNombre) => {
+              up("nombreActividad", act.nombre||"");
               up("inicio", act.inicio||"");
               up("desarrollo", act.desarrollo||"");
               up("cierre", act.cierre||"");
               if (temaNombre) up("titulo", temaNombre);
             }}
           />
+          <Card>
+            <Hdr icon="🏷️" title="Nombre de la Actividad" color="#7d3c98" />
+            <Fld label="Nombre de la actividad" hint="Se llena automático al elegir una actividad arriba; también puedes escribirlo o editarlo">
+              <Inp v={p.nombreActividad} set={v=>up("nombreActividad",v)} ph="Ej: Línea del tiempo digital, Análisis de caso, Debate estructurado..." />
+            </Fld>
+          </Card>
           <Card>
             <Hdr icon="🟢" title="Inicio (~15-20 min)" color="#27ae60" />
             <Txt v={p.inicio} set={v=>up("inicio",v)} ph={"• Encuadre y motivación...\n• Exploración de conocimientos previos...\n• Planteamiento del reto..."} rows={6} />
@@ -1727,6 +1825,129 @@ const ActivityForm = ({ act, onSave, onCancel }) => {
   );
 };
 
+/* ── CARGA MASIVA: modal ───────────────────────────────────────────────────── */
+const BulkImportModal = ({ selNivel, selGrado, selAsig, existingTopics, existingPdas, onApply, onClose }) => {
+  const [records, setRecords] = useState(null);
+  const [error, setError] = useState("");
+  const [fileName, setFileName] = useState("");
+  const fileRef = useRef();
+
+  const handleFile = e => {
+    const f = e.target.files[0]; if (!f) return;
+    setFileName(f.name); setError(""); setRecords(null);
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const res = parseBulkTopicsCSV(String(ev.target.result));
+      if (res.error) { setError(res.error); return; }
+      setRecords(res.records);
+    };
+    reader.onerror = () => setError("No se pudo leer el archivo.");
+    reader.readAsText(f, "UTF-8");
+    e.target.value = "";
+  };
+
+  // Vista previa: cuenta temas nuevos vs existentes, actividades nuevas vs duplicadas, PDAs nuevos vs ya existentes
+  const preview = React.useMemo(() => {
+    if (!records) return null;
+    const topicNames = new Set(existingTopics.map(t => t.nombre.trim().toLowerCase()));
+    const actKeyKnown = new Set();
+    existingTopics.forEach(t => (t.actividades||[]).forEach(a => actKeyKnown.add(t.nombre.trim().toLowerCase()+"||"+a.nombre.trim().toLowerCase())));
+    const pdaKnown = new Set(existingPdas.map(p => p.texto.trim().toLowerCase()));
+
+    let newTopics = new Set(), reusedTopics = new Set(), newActs = 0, dupActs = 0;
+    let newPdas = new Set(), dupPdasCount = 0;
+    const seenNewPdaThisFile = new Set();
+
+    records.forEach(r => {
+      const tKey = r.tema.trim().toLowerCase();
+      if (topicNames.has(tKey)) reusedTopics.add(tKey); else newTopics.add(tKey);
+      const actKey = tKey+"||"+r.actividad.trim().toLowerCase();
+      if (actKeyKnown.has(actKey)) dupActs++; else newActs++;
+      if (r.pda) {
+        const pKey = r.pda.trim().toLowerCase();
+        if (pdaKnown.has(pKey)) dupPdasCount++;
+        else { newPdas.add(pKey); seenNewPdaThisFile.add(pKey); }
+      }
+    });
+    return {
+      totalRows: records.length,
+      newTopicsCount: newTopics.size, reusedTopicsCount: reusedTopics.size,
+      newActs, dupActs,
+      newPdasCount: newPdas.size, dupPdasCount,
+    };
+  }, [records, existingTopics, existingPdas]);
+
+  const canShowSelectors = selNivel && selGrado && selAsig;
+
+  return (
+    <div style={{position:"fixed", inset:0, background:"#00000088", zIndex:800, display:"flex", alignItems:"center", justifyContent:"center", padding:16}}>
+      <div style={{background:"#fff", borderRadius:18, width:"100%", maxWidth:640, maxHeight:"92vh", overflowY:"auto", boxShadow:"0 20px 60px #0005"}}>
+        <div style={{background:"linear-gradient(135deg,#7d3c98,#a569bd)", color:"#fff", padding:"18px 22px", borderRadius:"18px 18px 0 0", display:"flex", justifyContent:"space-between", alignItems:"center", position:"sticky", top:0, zIndex:2}}>
+          <div>
+            <h2 style={{margin:0, fontSize:16, fontWeight:800}}>📥 Carga masiva de Temas, Actividades y PDA's</h2>
+            <p style={{margin:"3px 0 0", fontSize:12, opacity:.9}}>{canShowSelectors ? `${selNivel} · ${selGrado} · ${selAsig}` : "Selecciona Nivel, Grado y Asignatura primero"}</p>
+          </div>
+          <button onClick={onClose} style={{background:"rgba(255,255,255,.2)", border:"none", color:"#fff", borderRadius:8, padding:"5px 11px", cursor:"pointer", fontSize:14, flexShrink:0}}>✕</button>
+        </div>
+
+        <div style={{padding:24}}>
+          {!canShowSelectors ? (
+            <div style={{textAlign:"center", padding:"30px 10px", color:"#aaa"}}>
+              <div style={{fontSize:40}}>🎓</div>
+              <p style={{fontSize:13, marginTop:8}}>Cierra esta ventana y elige Nivel, Grado y Asignatura arriba para poder cargar temas.</p>
+            </div>
+          ) : <>
+            <div style={{background:"#faf5ff", border:"1.5px solid #e4d1f0", borderRadius:12, padding:"14px 18px", marginBottom:16}}>
+              <p style={{fontSize:12.5, color:"#555", margin:0, lineHeight:1.6}}>
+                Sube un archivo <b>.csv</b> con una fila por cada actividad, respetando el orden de campos:
+                {" "}<b>Tema → Nombre de la Actividad → Inicio → Desarrollo → Cierre → PDA</b>.
+                Si el <b>Tema</b> ya existe se reutiliza (la actividad se agrega dentro), y si el <b>PDA</b> ya existe
+                <b> se une a los ya guardados</b> sin duplicarlo ni borrar los anteriores. Puedes cargar todos los temas de la asignatura de una sola vez.
+              </p>
+              <button onClick={downloadCSVTemplate} style={{marginTop:12, padding:"9px 16px", background:"#fff", color:"#7d3c98", border:"1.5px solid #7d3c98", borderRadius:9, cursor:"pointer", fontWeight:700, fontSize:12.5}}>
+                📄 Descargar plantilla CSV
+              </button>
+            </div>
+
+            <div style={{border:"2px dashed #d0b6e0", borderRadius:12, padding:"20px", textAlign:"center", background:"#fcfaff", marginBottom:16}}>
+              <div style={{fontSize:30, marginBottom:6}}>⬆️</div>
+              <button onClick={()=>fileRef.current.click()} style={{padding:"10px 20px", background:"#7d3c98", color:"#fff", border:"none", borderRadius:9, cursor:"pointer", fontWeight:700, fontSize:13}}>
+                Seleccionar archivo .csv
+              </button>
+              <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={handleFile} style={{display:"none"}} />
+              {fileName && <p style={{marginTop:10, fontSize:12, color:"#666"}}>📎 {fileName}</p>}
+            </div>
+
+            {error && <div style={{background:"#fdecea", border:"1px solid #f5c6cb", borderRadius:10, padding:"10px 14px", marginBottom:14, fontSize:12.5, color:"#c0392b"}}>❌ {error}</div>}
+
+            {preview && (
+              <div style={{background:"#fff", border:"1.5px solid #e0ecf8", borderRadius:12, padding:"16px 18px", marginBottom:16}}>
+                <h4 style={{margin:"0 0 10px", fontSize:13, color:"#0072BB"}}>Vista previa — {preview.totalRows} fila(s) leídas</h4>
+                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, fontSize:12.5}}>
+                  <div style={{background:"#eafaf1", borderRadius:8, padding:"8px 12px"}}>📚 Temas nuevos: <b>{preview.newTopicsCount}</b></div>
+                  <div style={{background:"#eaf4fb", borderRadius:8, padding:"8px 12px"}}>♻️ Temas reutilizados: <b>{preview.reusedTopicsCount}</b></div>
+                  <div style={{background:"#eafaf1", borderRadius:8, padding:"8px 12px"}}>📋 Actividades nuevas: <b>{preview.newActs}</b></div>
+                  <div style={{background:"#fef9e7", borderRadius:8, padding:"8px 12px"}}>⏭️ Actividades duplicadas (se omiten): <b>{preview.dupActs}</b></div>
+                  <div style={{background:"#eafaf1", borderRadius:8, padding:"8px 12px"}}>🎯 PDA's nuevos (se unirán): <b>{preview.newPdasCount}</b></div>
+                  <div style={{background:"#fef9e7", borderRadius:8, padding:"8px 12px"}}>⏭️ PDA's ya existentes (se omiten): <b>{preview.dupPdasCount}</b></div>
+                </div>
+              </div>
+            )}
+
+            <div style={{display:"flex", gap:10, justifyContent:"flex-end"}}>
+              <button onClick={onClose} style={{padding:"10px 18px", background:"#ecf0f1", border:"none", borderRadius:9, cursor:"pointer", fontSize:13}}>Cancelar</button>
+              <button onClick={()=>records && onApply(records)} disabled={!records}
+                style={{padding:"10px 22px", background:records?"#7d3c98":"#bdc3c7", color:"#fff", border:"none", borderRadius:9, cursor:records?"pointer":"not-allowed", fontWeight:700, fontSize:13}}>
+                ✅ Aplicar carga masiva
+              </button>
+            </div>
+          </>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /* ── ADMIN PANEL ─────────────────────────────────────────────────────────────── */
 const AdminPanel = ({ exercises, onSave, onClose }) => {
   const [exs, setExs] = useState(() => JSON.parse(JSON.stringify(exercises||{})));
@@ -1743,6 +1964,8 @@ const AdminPanel = ({ exercises, onSave, onClose }) => {
   const [searchTopic, setSearchTopic] = useState("");
   const [newPda, setNewPda] = useState("");
   const [editPda, setEditPda] = useState(null);
+  const [showBulk, setShowBulk] = useState(false);
+  const [bulkResult, setBulkResult] = useState(null);
 
   const gradOpts = selNivel ? (NIVELES[selNivel]||[]) : [];
 
@@ -1833,6 +2056,52 @@ const AdminPanel = ({ exercises, onSave, onClose }) => {
       return {...t, actividades:(t.actividades||[]).filter(a => String(a.id)!==String(actId))};
     });
     deepSetTopics(topics);
+  };
+
+  const applyBulkImport = records => {
+    const topics = JSON.parse(JSON.stringify(getTopics()));
+    const pdas = JSON.parse(JSON.stringify(getPdas()));
+    let newTopicsCount = 0, newActsCount = 0, dupActsCount = 0, newPdasCount = 0, dupPdasCount = 0;
+
+    records.forEach(rec => {
+      let topic = topics.find(t => t.nombre.trim().toLowerCase() === rec.tema.toLowerCase());
+      if (!topic) {
+        topic = { id: nextBulkId(), nombre: rec.tema, actividades: [] };
+        topics.push(topic);
+        newTopicsCount++;
+      }
+      const already = (topic.actividades||[]).some(a => a.nombre.trim().toLowerCase() === rec.actividad.toLowerCase());
+      if (already) {
+        dupActsCount++;
+      } else {
+        topic.actividades = [...(topic.actividades||[]), {
+          id: nextBulkId(), nombre: rec.actividad,
+          inicio: rec.inicio, desarrollo: rec.desarrollo, cierre: rec.cierre,
+        }];
+        newActsCount++;
+      }
+      if (rec.pda) {
+        const exists = pdas.some(p => p.texto.trim().toLowerCase() === rec.pda.toLowerCase());
+        if (exists) dupPdasCount++;
+        else { pdas.push({ id: nextBulkId(), texto: rec.pda }); newPdasCount++; }
+      }
+    });
+
+    // Se aplican temas/actividades y PDA's en un solo cambio de estado para que
+    // ninguno de los dos se sobrescriba entre sí.
+    persist({
+      ...exs,
+      [selNivel]: {
+        ...(exs[selNivel]||{}),
+        [selGrado]: {
+          ...((exs[selNivel]||{})[selGrado]||{}),
+          [selAsig]: topics,
+          [selAsig+"__pdas"]: pdas,
+        }
+      }
+    });
+    setShowBulk(false);
+    setBulkResult({ newTopicsCount, newActsCount, dupActsCount, newPdasCount, dupPdasCount });
   };
 
   const totalTopics = Object.values(exs).reduce((a,nv) =>
@@ -2029,6 +2298,9 @@ const AdminPanel = ({ exercises, onSave, onClose }) => {
                 {(view==="topics"||view==="activities") && selTopicObj && view==="activities" && (
                   <button onClick={()=>setView("topics")} style={{padding:"8px 16px",background:"#ecf0f1",border:"none",borderRadius:8,cursor:"pointer",fontSize:12,fontWeight:600}}>← Temas</button>
                 )}
+                {view==="topics" && canShow && (
+                  <button onClick={()=>{setBulkResult(null);setShowBulk(true);}} style={{padding:"8px 18px",background:"#7d3c98",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:13}}>📥 Carga masiva</button>
+                )}
                 {view==="topics" && canShow && getTopics().length<100 && (
                   <button onClick={()=>{setEditTopic({nombre:""});setView("topic-form");}} style={{padding:"8px 18px",background:"#0072BB",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:13}}>+ Nuevo Tema</button>
                 )}
@@ -2148,6 +2420,25 @@ const AdminPanel = ({ exercises, onSave, onClose }) => {
           </div>
         )}
       </div>
+
+      {bulkResult && (
+        <div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",background:"#1e8449",color:"#fff",borderRadius:12,padding:"14px 20px",boxShadow:"0 8px 24px #0005",zIndex:900,fontSize:13,display:"flex",alignItems:"center",gap:14,maxWidth:"92vw",flexWrap:"wrap"}}>
+          <span>✅ Carga masiva aplicada: <b>{bulkResult.newTopicsCount}</b> tema(s) nuevo(s), <b>{bulkResult.newActsCount}</b> actividad(es) nueva(s)
+            {bulkResult.dupActsCount>0 && <> ({bulkResult.dupActsCount} omitida(s) por duplicada(s))</>}, <b>{bulkResult.newPdasCount}</b> PDA(s) unido(s) al banco existente
+            {bulkResult.dupPdasCount>0 && <> ({bulkResult.dupPdasCount} ya existían)</>}. Recuerda presionar <b>💾 Guardar</b> arriba.
+          </span>
+          <button onClick={()=>setBulkResult(null)} style={{background:"rgba(255,255,255,.25)",border:"none",color:"#fff",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:12}}>✕</button>
+        </div>
+      )}
+
+      {showBulk && (
+        <BulkImportModal
+          selNivel={selNivel} selGrado={selGrado} selAsig={selAsig}
+          existingTopics={getTopics()} existingPdas={getPdas()}
+          onApply={applyBulkImport}
+          onClose={()=>setShowBulk(false)}
+        />
+      )}
     </div>
   );
 };
