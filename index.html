@@ -51,9 +51,9 @@ const db = window.__pfDb;
 
 /* ── CATÁLOGOS ─────────────────────────────────────────────────────────────── */
 
-const NIVELES = { Preescolar:["1°","2°","3°"], Primaria:["1°","2°","3°","4°","5°","6°"], Secundaria:["1°","2°","3°"] };
+const NIVELES = { Secundaria:["1°","2°","3°"] };
 const ESCENARIOS = ["Aula","Escuela","Comunidad"];
-const GRUPOS = ["A","B","C","D","E","F"];
+const GRUPOS = ["A","B","C","D","E","F","G","H","I"];
 const BLOQUES = ["Bloque I","Bloque II","Bloque III","Bloque IV","Bloque V"];
 const TRIMESTRES = ["1er Trimestre","2do Trimestre","3er Trimestre"];
 const TIPOS = ["Proyecto de Aula","Proyecto Comunitario","Secuencia Didáctica","Situación Didáctica","Proyecto Interdisciplinario"];
@@ -69,7 +69,7 @@ const CAMPOS = [
   { id:"Ética, naturaleza y sociedades", label:"Ética, naturaleza y sociedades",
     asignaturas:["Historia","Formación cívica y ética","Geografía"] },
   { id:"De lo humano y lo comunitario", label:"De lo humano y lo comunitario",
-    asignaturas:["Tecnología","Informática","Educación Socioemocional / Tutoría","Educación Física"] },
+    asignaturas:["Informática","Educación Socioemocional / Tutoría","Educación Física"] },
 ];
 
 const CONTENIDOS = {
@@ -86,7 +86,6 @@ const CONTENIDOS = {
   "Historia":["Prehistoria y primeras civilizaciones","Mesoamérica y culturas prehispánicas","Conquista y Colonia en México","Independencia de México","Reforma y República Restaurada","Revolución Mexicana","México contemporáneo","Historia universal del siglo XX"],
   "Geografía":["Representación de la Tierra","Relieve, clima y biodiversidad de México","Población y distribución demográfica","Regiones económicas de México","Medio ambiente y sustentabilidad","Geografía de América Latina","Globalización y sus efectos","Recursos naturales y su cuidado"],
   "Formación cívica y ética":["Identidad personal y social","Derechos humanos universales","Ciudadanía y democracia","Igualdad de género","Medio ambiente y responsabilidad","Resolución de conflictos","Dilemas éticos contemporáneos","Participación ciudadana"],
-  "Tecnología":["Herramientas, máquinas e instrumentos, como extensión corporal, en la satisfacción continua de intereses y necesidades humanas.","Materiales, procesos técnicos y comunidad.","Usos e implicaciones de la energía en los procesos técnicos.","Factores que inciden en los procesos técnicos.","Procesos técnicos.","Comunicación y representación técnica.","Pensamiento estratégico y creativo en la resolución de problemas.","Evaluación de sistemas tecnológicos.","Otro contenido"],
   "Informática":["Herramientas, máquinas e instrumentos, como extensión corporal, en la satisfacción continua de intereses y necesidades humanas.","Materiales, procesos técnicos y comunidad.","Usos e implicaciones de la energía en los procesos técnicos.","Factores que inciden en los procesos técnicos.","Procesos técnicos.","Comunicación y representación técnica.","Pensamiento estratégico y creativo en la resolución de problemas.","Evaluación de sistemas tecnológicos.","Otro contenido"],
   "Educación Física":["Habilidades motrices básicas","Juegos y actividades recreativas","Deportes colectivos","Deportes individuales","Salud y actividad física","Expresión corporal y ritmo","Actividad física y naturaleza","Juegos tradicionales y populares"],
   "Educación Socioemocional / Tutoría":["Autoconocimiento e identidad","Autorregulación emocional","Empatía y relaciones interpersonales","Toma de decisiones responsables","Proyecto de vida","Habilidades socioemocionales","Convivencia escolar","Bienestar y salud mental"],
@@ -104,7 +103,6 @@ const PDA_MAP = {
   "Inglés":["Comprende textos orales y escritos en inglés","Produce textos orales y escritos para comunicarse","Interactúa en situaciones comunicativas cotidianas","Reflexiona sobre el funcionamiento de la lengua inglesa","Reconoce la diversidad cultural angloparlante"],
   "Educación Física":["Practica actividades físicas para el desarrollo motriz","Aplica estrategias para el trabajo en equipo","Valora la actividad física como estilo de vida saludable","Reconoce características del desarrollo corporal","Participa en juegos y deportes con actitud incluyente"],
   "Artes":["Explora y experimenta con técnicas y materiales artísticos","Aprecia y analiza manifestaciones artísticas y culturales","Crea proyectos artísticos con intención comunicativa","Reflexiona sobre el arte como expresión cultural"],
-  "Tecnología":["Analiza el impacto social y ambiental de la tecnología","Diseña y construye objetos técnicos para resolver problemas","Aplica procesos de diseño y evaluación técnica","Reconoce el papel de la tecnología en el desarrollo humano","Usa herramientas digitales para aprender y crear"],
   "Educación Socioemocional / Tutoría":["Identifica y regula emociones para el bienestar personal","Desarrolla habilidades para la convivencia y el diálogo","Reconoce factores que influyen en su proyecto de vida","Valora la diversidad y practica la empatía","Construye relaciones interpersonales sanas"],
 };
 
@@ -351,6 +349,7 @@ const emptyPlan = (pr = {}) => ({
   metodologia: "", problemaEntorno: "", ejesArticuladores: [],
   propositoGeneral: "", propositosEspecificos: "", aprendizajesEsperados: "",
   nombreActividad: "", inicio: "", desarrollo: "", cierre: "",
+  minInicio: 15, minDesarrollo: 30, minCierre: 10,
   recursos: "", espacios: "",
   instrumentosEvaluacion: "", criteriosEvaluacion: "", observaciones: "",
   nombreElabora: pr.docente || "",
@@ -475,10 +474,21 @@ const Fld = ({ label, hint, children, req }) => (
 const Card = ({ children, style={} }) => (
   <div style={{background:"#fff", borderRadius:14, padding:"20px 22px", marginBottom:14, boxShadow:"0 2px 10px #0072bb10", border:"1px solid #e8f0f8", ...style}}>{children}</div>
 );
-const Hdr = ({ icon, title, color }) => (
+const Hdr = ({ icon, title, color, right }) => (
   <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:16, paddingBottom:10, borderBottom:`2px solid ${color}22`}}>
     <div style={{width:30, height:30, borderRadius:7, background:color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15}}>{icon}</div>
-    <h3 style={{margin:0, fontSize:14, fontWeight:700, color}}>{title}</h3>
+    <h3 style={{margin:0, fontSize:14, fontWeight:700, color, flex:1}}>{title}</h3>
+    {right}
+  </div>
+);
+const MinInput = ({ v, set, color }) => (
+  <div style={{display:"flex", alignItems:"center", gap:5}}>
+    <input type="number" min={1} max={180} value={v??""} onChange={e=>{
+        const raw = e.target.value;
+        set(raw === "" ? "" : Math.max(1, Math.min(180, parseInt(raw,10)||0)));
+      }}
+      style={{width:52, padding:"5px 6px", border:`1.5px solid ${color}66`, borderRadius:7, fontSize:12.5, textAlign:"center", color:"#2c3e50"}} />
+    <span style={{fontSize:11.5, color:"#7f8c8d"}}>min</span>
   </div>
 );
 const Pills = ({ opts, sel, set, multi, max }) => (
@@ -1520,7 +1530,7 @@ const PlanForm = ({ plan, onSave, onBack, onPrint, exercises }) => {
       {/* Tabs */}
       <div style={{background:"#fff", borderBottom:"1px solid #e0ecf8", display:"flex", overflowX:"auto"}}>
         {TABS.map((t, i) => (
-          <button key={t.l} onClick={() => setTab(i)} style={{
+          <button key={t.l} onClick={() => { setTab(i); window.scrollTo({top:0, behavior:"smooth"}); }} style={{
             padding:"11px 16px", border:"none", background:"none", cursor:"pointer",
             color:tab===i?"#0072BB":"#888", fontWeight:tab===i?700:400, fontSize:12.5,
             borderBottom:tab===i?"2.5px solid #0072BB":"2.5px solid transparent",
@@ -1663,6 +1673,9 @@ const PlanForm = ({ plan, onSave, onBack, onPrint, exercises }) => {
               up("inicio", act.inicio||"");
               up("desarrollo", act.desarrollo||"");
               up("cierre", act.cierre||"");
+              up("minInicio", act.minInicio ?? 15);
+              up("minDesarrollo", act.minDesarrollo ?? 30);
+              up("minCierre", act.minCierre ?? 10);
               if (temaNombre) up("titulo", temaNombre);
             }}
           />
@@ -1673,15 +1686,15 @@ const PlanForm = ({ plan, onSave, onBack, onPrint, exercises }) => {
             </Fld>
           </Card>
           <Card>
-            <Hdr icon="🟢" title="Inicio (~15-20 min)" color="#27ae60" />
+            <Hdr icon="🟢" title="Inicio" color="#27ae60" right={<MinInput v={p.minInicio} set={v=>up("minInicio",v)} color="#27ae60" />} />
             <Txt v={p.inicio} set={v=>up("inicio",v)} ph={"• Encuadre y motivación...\n• Exploración de conocimientos previos...\n• Planteamiento del reto..."} rows={6} />
           </Card>
           <Card>
-            <Hdr icon="🔵" title="Desarrollo (~30-40 min)" color="#2980b9" />
+            <Hdr icon="🔵" title="Desarrollo" color="#2980b9" right={<MinInput v={p.minDesarrollo} set={v=>up("minDesarrollo",v)} color="#2980b9" />} />
             <Txt v={p.desarrollo} set={v=>up("desarrollo",v)} ph={"• Organización en equipos...\n• Investigación / experimentación...\n• Construcción del conocimiento..."} rows={8} />
           </Card>
           <Card>
-            <Hdr icon="🔴" title="Cierre (~10-15 min)" color="#c0392b" />
+            <Hdr icon="🔴" title="Cierre" color="#c0392b" right={<MinInput v={p.minCierre} set={v=>up("minCierre",v)} color="#c0392b" />} />
             <Txt v={p.cierre} set={v=>up("cierre",v)} ph={"• Puesta en común...\n• Reflexión y síntesis...\n• Tarea o continuación..."} rows={5} />
           </Card>
           <Card>
@@ -1734,8 +1747,8 @@ const PlanForm = ({ plan, onSave, onBack, onPrint, exercises }) => {
 
         {/* Nav */}
         <div style={{display:"flex", justifyContent:"space-between", marginTop:4}}>
-          {tab>0 && <button onClick={() => setTab(t=>t-1)} style={{padding:"9px 18px", background:"#fff", border:"1.5px solid #dce6f0", borderRadius:9, cursor:"pointer", color:"#0072BB", fontWeight:600, fontSize:13}}>← Anterior</button>}
-          {tab<TABS.length-1 && <button onClick={() => setTab(t=>t+1)} style={{marginLeft:"auto", padding:"9px 18px", background:"#0072BB", color:"#fff", border:"none", borderRadius:9, cursor:"pointer", fontWeight:700, fontSize:13}}>Siguiente →</button>}
+          {tab>0 && <button onClick={() => { setTab(t=>t-1); window.scrollTo({top:0, behavior:"smooth"}); }} style={{padding:"9px 18px", background:"#fff", border:"1.5px solid #dce6f0", borderRadius:9, cursor:"pointer", color:"#0072BB", fontWeight:600, fontSize:13}}>← Anterior</button>}
+          {tab<TABS.length-1 && <button onClick={() => { setTab(t=>t+1); window.scrollTo({top:0, behavior:"smooth"}); }} style={{marginLeft:"auto", padding:"9px 18px", background:"#0072BB", color:"#fff", border:"none", borderRadius:9, cursor:"pointer", fontWeight:700, fontSize:13}}>Siguiente →</button>}
         </div>
       </div>
     </div>
@@ -1804,12 +1817,15 @@ const ActivityForm = ({ act, onSave, onCancel }) => {
           style={{...S}} autoFocus />
       </div>
       {[
-        {k:"inicio", label:"🟢 INICIO (~15-20 min)", color:"#27ae60", ph:"Encuadre y motivación. Exploración de conocimientos previos. Planteamiento del reto..."},
-        {k:"desarrollo", label:"🔵 DESARROLLO (~30-40 min)", color:"#2471a3", ph:"Organización en equipos. Investigación / experimentación. Construcción del conocimiento..."},
-        {k:"cierre", label:"🔴 CIERRE (~10-15 min)", color:"#c0392b", ph:"Puesta en común. Reflexión y síntesis. Autoevaluación. Tarea para siguiente sesión..."},
-      ].map(({k,label,color,ph}) => (
+        {k:"inicio", mk:"minInicio", def:15, label:"🟢 INICIO", color:"#27ae60", ph:"Encuadre y motivación. Exploración de conocimientos previos. Planteamiento del reto..."},
+        {k:"desarrollo", mk:"minDesarrollo", def:30, label:"🔵 DESARROLLO", color:"#2471a3", ph:"Organización en equipos. Investigación / experimentación. Construcción del conocimiento..."},
+        {k:"cierre", mk:"minCierre", def:10, label:"🔴 CIERRE", color:"#c0392b", ph:"Puesta en común. Reflexión y síntesis. Autoevaluación. Tarea para siguiente sesión..."},
+      ].map(({k,mk,def,label,color,ph}) => (
         <div key={k} style={{marginBottom:12}}>
-          <label style={{display:"block", fontWeight:700, fontSize:12, color, marginBottom:4}}>{label}</label>
+          <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4}}>
+            <label style={{fontWeight:700, fontSize:12, color}}>{label}</label>
+            <MinInput v={f[mk] ?? def} set={v=>s(mk,v)} color={color} />
+          </div>
           <textarea value={f[k]||""} onChange={e=>s(k,e.target.value)} placeholder={ph} rows={4}
             style={{...S, resize:"vertical", lineHeight:1.6, borderColor:color+"66"}} />
         </div>
@@ -2305,7 +2321,7 @@ const AdminPanel = ({ exercises, onSave, onClose }) => {
                   <button onClick={()=>{setEditTopic({nombre:""});setView("topic-form");}} style={{padding:"8px 18px",background:"#0072BB",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:13}}>+ Nuevo Tema</button>
                 )}
                 {view==="activities" && selTopicObj && (activities.length<100) && (
-                  <button onClick={()=>{setEditAct({nombre:"",inicio:"",desarrollo:"",cierre:""});setView("activity-form");}} style={{padding:"8px 18px",background:"#7d3c98",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:13}}>+ Nueva Actividad</button>
+                  <button onClick={()=>{setEditAct({nombre:"",inicio:"",desarrollo:"",cierre:"",minInicio:15,minDesarrollo:30,minCierre:10});setView("activity-form");}} style={{padding:"8px 18px",background:"#7d3c98",color:"#fff",border:"none",borderRadius:8,cursor:"pointer",fontWeight:700,fontSize:13}}>+ Nueva Actividad</button>
                 )}
               </div>
             </div>
@@ -2386,7 +2402,7 @@ const AdminPanel = ({ exercises, onSave, onClose }) => {
                   <div style={{textAlign:"center",padding:"50px 20px",background:"#fff",borderRadius:14,border:"2px dashed #e0d0f0"}}>
                     <div style={{fontSize:44,marginBottom:10}}>📋</div>
                     <p style={{fontSize:14,color:"#aaa"}}>Sin actividades en "{selTopicObj.nombre}"</p>
-                    <button onClick={()=>{setEditAct({nombre:"",inicio:"",desarrollo:"",cierre:""});setView("activity-form");}} style={{marginTop:14,padding:"10px 24px",background:"#7d3c98",color:"#fff",border:"none",borderRadius:9,cursor:"pointer",fontWeight:700,fontSize:13}}>Crear la primera actividad</button>
+                    <button onClick={()=>{setEditAct({nombre:"",inicio:"",desarrollo:"",cierre:"",minInicio:15,minDesarrollo:30,minCierre:10});setView("activity-form");}} style={{marginTop:14,padding:"10px 24px",background:"#7d3c98",color:"#fff",border:"none",borderRadius:9,cursor:"pointer",fontWeight:700,fontSize:13}}>Crear la primera actividad</button>
                   </div>
                 ) : (
                   <div style={{display:"flex",flexDirection:"column",gap:10}}>
