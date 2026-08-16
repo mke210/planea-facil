@@ -650,7 +650,7 @@ function buildDocHtml(pl, design) {
   const TH = () => `background:${primary};color:#fff;font-weight:700;font-size:11pt;padding:9px 14px;text-align:center;letter-spacing:.4px;border-radius:2px;`;
 
   /* Caja de campo (recuadro con etiqueta arriba y valor abajo) */
-  const cellStyle = span => `width:${(span/3*100).toFixed(2)}%;vertical-align:top;padding:8px 12px;border:1px solid ${C.fieldBorder};background:${C.fieldFill};`;
+  const cellStyle = () => `vertical-align:top;padding:8px 12px;border:1px solid ${C.fieldBorder};background:${C.fieldFill};`;
   const lblStyle = () => `font-size:8.5pt;font-weight:800;color:${secondary};text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px;`;
   const valStyle = () => `font-size:9.5pt;color:${C.value};line-height:1.5;`;
 
@@ -663,9 +663,10 @@ function buildDocHtml(pl, design) {
     });
     if (cur.length) rows.push(cur);
     const rowsHtml = rows.map(r => `<tr>${r.map(f=>
-      `<td style="${cellStyle(f.span)}"><div style="${lblStyle()}">${f.label}</div><div style="${valStyle()}">${f.value||"—"}</div></td>`
+      `<td colspan="${f.span}" style="${cellStyle()}"><div style="${lblStyle()}">${f.label}</div><div style="${valStyle()}">${f.value||"—"}</div></td>`
     ).join("")}</tr>`).join("");
     return `<table style="width:100%;border-collapse:collapse;margin-bottom:14px;table-layout:fixed;">
+      <colgroup><col style="width:33.34%;"/><col style="width:33.33%;"/><col style="width:33.33%;"/></colgroup>
       <tr><td colspan="3" style="${TH()}">${title}</td></tr>
       ${rowsHtml}
     </table>`;
@@ -694,7 +695,7 @@ function buildDocHtml(pl, design) {
 
   /* ── Secciones ── */
   const secGenerales = gridTable("DATOS GENERALES", [
-    {label:"Docente", value:val(pl.docente), span:2},
+    {label:"Docente", value:val(pl.docente), span:1},
     {label:"Nivel / Grado / Grupo", value:nivelGradoGrupo, span:1},
     {label:"Bloque", value:val(pl.bloque), span:1},
     {label:"Trimestre", value:val(pl.trimestre), span:1},
@@ -702,16 +703,16 @@ function buildDocHtml(pl, design) {
     {label:"Horas Semanales", value:val(pl.horasSemanales), span:1},
     {label:"Fechas", value:`${fmtDate(pl.fechaInicio)} al ${fmtDate(pl.fechaFin)}`, span:1},
     {label:"Escenario", value:val(pl.escenario), span:1},
-    {label:"Tipo de Proyecto", value:val(pl.tipoProyecto), span:2},
+    {label:"Tipo de Proyecto", value:val(pl.tipoProyecto), span:1},
   ]);
 
   const secDetalles = gridTable("DETALLES DE LA PLANEACIÓN", [
     {label:"Tema / Título de la Planeación", value:`<b>${val(pl.titulo||pl.contenidoSintetico)}</b>`, span:3},
-    {label:"Campo Formativo", value:val(pl.campoFormativo), span:2},
+    {label:"Campo Formativo", value:val(pl.campoFormativo), span:1},
     {label:"Asignatura / Disciplina", value:val(pl.asignatura), span:1},
-    {label:"Contenido del Prog. Sintético", value:val(pl.contenidoSintetico), span:3},
-    {label:"Proceso de Desarrollo (PDA)", value:val(pl.pda), span:3},
-    {label:"Metodología de Enseñanza", value:val(pl.metodologia), span:2},
+    {label:"Contenido del Prog. Sintético", value:val(pl.contenidoSintetico), span:1},
+    {label:"Proceso de Desarrollo (PDA)", value:val(pl.pda), span:1},
+    {label:"Metodología de Enseñanza", value:val(pl.metodologia), span:1},
     {label:"Problema del Entorno", value:val(pl.problemaEntorno), span:1},
     {label:"Ejes Articuladores", value:ejes, span:3},
   ]);
@@ -723,11 +724,11 @@ function buildDocHtml(pl, design) {
   ]);
 
   const secRecursos = gridTable("RECURSOS Y EVALUACIÓN", [
-    {label:"Materiales y Recursos", value:nl(pl.recursos), span:3},
-    {label:"Espacios de Aprendizaje", value:nl(pl.espacios), span:3},
-    {label:"Instrumentos de Evaluación", value:nl(pl.instrumentosEvaluacion), span:2},
-    {label:"Criterios de Evaluación", value:nl(pl.criteriosEvaluacion), span:1},
-    {label:"Observaciones Docentes", value:nl(pl.observaciones), span:3},
+    {label:"Materiales y Recursos", value:nl(pl.recursos), span:1},
+    {label:"Espacios de Aprendizaje", value:nl(pl.espacios), span:1},
+    {label:"Instrumentos de Evaluación", value:nl(pl.instrumentosEvaluacion), span:1},
+    {label:"Criterios de Evaluación", value:nl(pl.criteriosEvaluacion), span:2},
+    {label:"Observaciones Docentes", value:nl(pl.observaciones), span:1},
   ]);
 
   const seqCell = (bg, headColor, headText, body) => `
