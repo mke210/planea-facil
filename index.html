@@ -573,9 +573,9 @@ const CampoCards = ({ selected, onChange }) => (
 
 /* ── DOCUMENT HTML BUILDER ──────────────────────────────────────────────────── */
 
-/* Utilidades de color: generan una paleta armónica a partir de un solo color de acento */
+/* Utilidades de color */
 function hexToHsl(hex) {
-  hex = (hex||"#1B6CA8").replace("#","");
+  hex = (hex||"#163B63").replace("#","");
   if (hex.length===3) hex = hex.split("").map(c=>c+c).join("");
   const r=parseInt(hex.slice(0,2),16)/255, g=parseInt(hex.slice(2,4),16)/255, b=parseInt(hex.slice(4,6),16)/255;
   const max=Math.max(r,g,b), min=Math.min(r,g,b); let h,s,l=(max+min)/2;
@@ -600,41 +600,41 @@ function hslToHex(h,s,l) {
   const toHex=v=>Math.round((v+m)*255).toString(16).padStart(2,"0");
   return "#"+toHex(r)+toHex(g)+toHex(b);
 }
-function paletteFromAccent(accent) {
-  const [h] = hexToHsl(accent);
-  const tone = (dh, s=58, l=36, ls=94) => ({
-    bg: hslToHex(h+dh, s, l),
-    lt: hslToHex(h+dh, Math.max(s-30,12), ls),
-    bd: hslToHex(h+dh, Math.max(s-10,20), Math.max(ls-16,72)),
-  });
+
+/* Los 3 diseños institucionales (basados en las plantillas Word proporcionadas) */
+const DOC_TEMPLATES = [
+  { id:"azul_oro",         label:"Institucional Azul y Oro",     primary:"#163B63", secondary:"#C69C3C", desc:"Azul marino con acentos dorados, estilo formal." },
+  { id:"vino_terracota",   label:"Elegante Vino y Terracota",    primary:"#632D43", secondary:"#B27A4D", desc:"Vino tinto con acentos terracota, tono sobrio." },
+  { id:"turquesa_naranja", label:"Fresco Turquesa y Naranja",    primary:"#075E75", secondary:"#F28C28", desc:"Turquesa con acentos naranja, tono vivo." },
+];
+const DOC_DESIGN_DEFAULT = {
+  template:"azul_oro", primaryColor:"#163B63", secondaryColor:"#C69C3C",
+  header:{ escuela:true, zona:true, cct:true, ciclo:true },
+};
+
+// Deriva la paleta completa (fondos, bordes, texto) a partir de los dos colores elegidos
+function paletteFromTwoAccents(primary, secondary) {
+  const [hp, sp, lp] = hexToHsl(primary);
   return {
-    gen:  {bg:accent, lt:hslToHex(h,22,95), bd:hslToHex(h,32,82)},
-    det:  tone(38),
-    prop: tone(-52),
-    seq:  tone(14),
-    rec:  tone(-98, 55, 40),
-    ini:  hslToHex(h+38, 55, 33),
-    des:  hslToHex(h, 55, 30),
-    cie:  hslToHex(h-98, 55, 36),
-    stripe:[accent, hslToHex(h+38,55,44), hslToHex(h-52,55,44), hslToHex(h+70,55,44), hslToHex(h-98,55,44), hslToHex(h+14,55,44)],
+    primary, secondary,
+    title:       hslToHex(hp, sp, Math.max(lp-7, 8)),
+    meta:        hslToHex(hp, 10, 46),
+    value:       hslToHex(hp, 20, 20),
+    fieldFill:   hslToHex(hp, 42, 97),
+    fieldBorder: hslToHex(hp, 30, 83),
+    desFill:     hslToHex(hp, 40, 95),
+    cierreFill:  "#FFF8EC",
+    desColor:    "#2E8B9F",
   };
 }
 
-const DOC_TEMPLATES = [
-  { id:"clasico",  label:"Clásico Institucional", desc:"Barras de color sólidas, estilo formal SEP." },
-  { id:"moderno",  label:"Moderno Minimalista",  desc:"Líneas finas, tarjetas limpias, mucho blanco." },
-  { id:"elegante", label:"Elegante", desc:"Tipografía serif, acabados dorados, aire clásico." },
-];
-const DOC_DESIGN_DEFAULT = { template:"clasico", accentColor:"#1B6CA8", header:{ escuela:true, zona:true, cct:true, ciclo:true } };
-
 function buildDocHtml(pl, design) {
   design = design || DOC_DESIGN_DEFAULT;
-  const template = design.template || "clasico";
-  const accent = design.accentColor || "#1B6CA8";
+  const tmpl = DOC_TEMPLATES.find(t=>t.id===design.template) || DOC_TEMPLATES[0];
+  const primary = design.primaryColor || tmpl.primary;
+  const secondary = design.secondaryColor || tmpl.secondary;
   const hdrOn = Object.assign({}, DOC_DESIGN_DEFAULT.header, design.header||{});
-  const C = paletteFromAccent(accent);
-  const isMod = template === "moderno";
-  const isEle = template === "elegante";
+  const C = paletteFromTwoAccents(primary, secondary);
 
   const nl = t => (t||"").replace(/\n/g,"<br/>");
   const val = v => (v||"").trim() || "—";
@@ -644,27 +644,17 @@ function buildDocHtml(pl, design) {
   const fmtDate = d => { if(!d) return "—"; try { return new Date(d+"T12:00:00").toLocaleDateString("es-MX",{day:"2-digit",month:"long",year:"numeric"}); } catch{return d;} };
   const minIni = pl.minInicio ?? 15, minDes = pl.minDesarrollo ?? 30, minCie = pl.minCierre ?? 10;
 
-  const bodyFont = isEle ? "'Georgia','Times New Roman',serif" : "Arial, sans-serif";
+  const bodyFont = "Arial, sans-serif";
 
-  /* ── Estilos de sección/celda por plantilla ─────────────────────────────── */
-  const TH = (c, span3) => isMod
-    ? `border-left:5px solid ${c.bg};background:${c.lt};color:${c.bg};font-weight:800;font-size:10.5pt;padding:8px 14px;text-align:left;letter-spacing:.4px;text-transform:uppercase;`
-    : isEle
-      ? `background:${c.bg};color:#fff;font-weight:700;font-size:10.5pt;padding:9px 16px;text-align:center;letter-spacing:1.2px;text-transform:uppercase;border-top:2px solid #D4AF37;border-bottom:2px solid #D4AF37;`
-      : `background:${c.bg};color:#fff;font-weight:700;font-size:10.5pt;padding:9px 14px;text-align:left;border:none;letter-spacing:.3px;`;
+  /* Barra de sección a todo lo ancho */
+  const TH = () => `background:${primary};color:#fff;font-weight:700;font-size:11pt;padding:9px 14px;text-align:center;letter-spacing:.4px;border-radius:2px;`;
 
-  const cellStyle = (c, span) => {
-    const w = `width:${(span/3*100).toFixed(2)}%;`;
-    if (isMod) return `${w}vertical-align:top;padding:8px 12px;border:1px solid #E3E7EC;background:#fff;`;
-    return `${w}vertical-align:top;padding:8px 12px;border:1px solid ${c.bd};background:${c.lt};`;
-  };
-  const lblStyle = c => isMod
-    ? `font-size:8pt;font-weight:800;color:${c.bg};text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;`
-    : `font-size:8.5pt;font-weight:800;color:${isEle?c.bg:"#1a2035"};text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px;opacity:${isEle?1:.85};`;
-  const valStyle = () => `font-size:9.5pt;color:#1a2035;line-height:1.5;`;
+  /* Caja de campo (recuadro con etiqueta arriba y valor abajo) */
+  const cellStyle = span => `width:${(span/3*100).toFixed(2)}%;vertical-align:top;padding:8px 12px;border:1px solid ${C.fieldBorder};background:${C.fieldFill};`;
+  const lblStyle = () => `font-size:8.5pt;font-weight:800;color:${secondary};text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px;`;
+  const valStyle = () => `font-size:9.5pt;color:${C.value};line-height:1.5;`;
 
-  // Agrupa campos en filas de hasta 3 columnas según el "span" de cada uno (1, 2 o 3)
-  const gridTable = (c, icon, title, fields) => {
+  const gridTable = (title, fields) => {
     let rows=[], cur=[], curSpan=0;
     fields.forEach(f => {
       const span = f.span||1;
@@ -673,40 +663,37 @@ function buildDocHtml(pl, design) {
     });
     if (cur.length) rows.push(cur);
     const rowsHtml = rows.map(r => `<tr>${r.map(f=>
-      `<td style="${cellStyle(c,f.span)}"><div style="${lblStyle(c)}">${f.label}</div><div style="${valStyle()}">${f.value||"—"}</div></td>`
+      `<td style="${cellStyle(f.span)}"><div style="${lblStyle()}">${f.label}</div><div style="${valStyle()}">${f.value||"—"}</div></td>`
     ).join("")}</tr>`).join("");
     return `<table style="width:100%;border-collapse:collapse;margin-bottom:14px;table-layout:fixed;">
-      <tr><td colspan="3" style="${TH(c)}">${icon} ${title}</td></tr>
+      <tr><td colspan="3" style="${TH()}">${title}</td></tr>
       ${rowsHtml}
     </table>`;
   };
 
-  const stripeBar = C.stripe.map(s=>`<td style="background:${s};height:7px;padding:0;border:none;"></td>`).join("");
+  // Franja superior: 5 tramos alternando primario/secundario
+  const stripeColors = [primary, secondary, primary, secondary, primary];
+  const stripeBar = stripeColors.map(c=>`<td style="width:20%;background:${c};height:8px;padding:0;border:none;"></td>`).join("");
 
-  /* ── Encabezado (solo los campos activados) ─────────────────────────────── */
-  const badgeStyle = isMod
-    ? `display:inline-block;color:${accent};font-size:8.5pt;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;border-bottom:2px solid ${accent};padding-bottom:2px;`
-    : isEle
-      ? `display:inline-block;color:${accent};font-size:8.5pt;font-weight:700;letter-spacing:2px;padding:3px 0;border-top:1px solid #D4AF37;border-bottom:1px solid #D4AF37;text-transform:uppercase;`
-      : `display:inline-block;background:${accent};color:#fff;font-size:8.5pt;font-weight:700;letter-spacing:1px;padding:3px 12px;border-radius:2px;text-transform:uppercase;`;
-
+  /* ── Encabezado ── */
   const metaParts = [];
   if (hdrOn.cct) metaParts.push("CCT: "+val(pl.cct));
   if (hdrOn.zona) metaParts.push("Zona Escolar: "+val(pl.zonaEscolar));
   if (pl.municipio||pl.estado) metaParts.push([pl.municipio,pl.estado].filter(Boolean).join(", "));
   if (hdrOn.ciclo) metaParts.push("Ciclo Escolar: "+val(pl.cicloEscolar));
 
+  const tituloPrincipal = (hdrOn.escuela && val(pl.escuela)!=="—") ? ("ESCUELA: "+val(pl.escuela)) : "PLANEACIÓN DIDÁCTICA";
+
   const headerHtml = `
-<div class="hdr-wrap" style="${isEle?"text-align:center;":""}margin-bottom:14px;">
-  <div style="${badgeStyle}">Nueva Escuela Mexicana · Plan 2022</div>
-  <p style="font-family:${bodyFont};font-size:14pt;font-weight:900;color:${accent};margin:6px 0 2px;letter-spacing:-.2px;">PLANEACIÓN DIDÁCTICA — PLANEA FÁCIL</p>
-  <p style="font-family:${bodyFont};font-size:11.5pt;font-style:italic;font-weight:700;color:${C.det.bg};margin:0 0 6px;">${val(pl.titulo||pl.contenidoSintetico)}</p>
-  ${hdrOn.escuela ? `<p style="font-size:10.5pt;font-weight:700;color:#1a2035;margin:0;">🏫 Escuela: ${val(pl.escuela)}</p>` : ""}
-  ${metaParts.length ? `<p style="font-size:9pt;color:#555;margin:2px 0 0;">${metaParts.join(" &nbsp;·&nbsp; ")}</p>` : ""}
+<div style="text-align:center;margin-bottom:10px;">
+  <p style="font-family:${bodyFont};font-size:9pt;font-weight:700;color:${secondary};letter-spacing:1px;text-transform:uppercase;margin:0 0 4px;">Nueva Escuela Mexicana · Plan 2022</p>
+  <p style="font-family:${bodyFont};font-size:17pt;font-weight:800;color:${C.title};margin:0 0 4px;">${tituloPrincipal}</p>
+  <p style="font-family:${bodyFont};font-size:9pt;font-style:italic;color:${C.meta};margin:0 0 6px;">${val(pl.titulo||pl.contenidoSintetico)}</p>
+  ${metaParts.length ? `<p style="font-size:9pt;color:${C.meta};margin:0;">${metaParts.join(" &nbsp;·&nbsp; ")}</p>` : ""}
 </div>`;
 
-  /* ── Secciones (mismos datos, distinto empaque visual) ──────────────────── */
-  const secGenerales = gridTable(C.gen, "📋", "Datos Generales", [
+  /* ── Secciones ── */
+  const secGenerales = gridTable("DATOS GENERALES", [
     {label:"Docente", value:val(pl.docente), span:2},
     {label:"Nivel / Grado / Grupo", value:nivelGradoGrupo, span:1},
     {label:"Bloque", value:val(pl.bloque), span:1},
@@ -718,7 +705,7 @@ function buildDocHtml(pl, design) {
     {label:"Tipo de Proyecto", value:val(pl.tipoProyecto), span:2},
   ]);
 
-  const secDetalles = gridTable(C.det, "🌿", "Detalles de la Planeación", [
+  const secDetalles = gridTable("DETALLES DE LA PLANEACIÓN", [
     {label:"Tema / Título de la Planeación", value:`<b>${val(pl.titulo||pl.contenidoSintetico)}</b>`, span:3},
     {label:"Campo Formativo", value:val(pl.campoFormativo), span:2},
     {label:"Asignatura / Disciplina", value:val(pl.asignatura), span:1},
@@ -729,13 +716,13 @@ function buildDocHtml(pl, design) {
     {label:"Ejes Articuladores", value:ejes, span:3},
   ]);
 
-  const secPropositos = gridTable(C.prop, "🎯", "Propósitos y Aprendizajes Esperados", [
+  const secPropositos = gridTable("PROPÓSITOS Y APRENDIZAJES ESPERADOS", [
     {label:"Propósito General", value:nl(pl.propositoGeneral), span:3},
     {label:"Propósitos Específicos", value:nl(pl.propositosEspecificos), span:3},
     {label:"Aprendizajes Esperados", value:nl(pl.aprendizajesEsperados), span:3},
   ]);
 
-  const secRecursos = gridTable(C.rec, "🧰", "Recursos y Evaluación", [
+  const secRecursos = gridTable("RECURSOS Y EVALUACIÓN", [
     {label:"Materiales y Recursos", value:nl(pl.recursos), span:3},
     {label:"Espacios de Aprendizaje", value:nl(pl.espacios), span:3},
     {label:"Instrumentos de Evaluación", value:nl(pl.instrumentosEvaluacion), span:2},
@@ -743,70 +730,58 @@ function buildDocHtml(pl, design) {
     {label:"Observaciones Docentes", value:nl(pl.observaciones), span:3},
   ]);
 
-  const seqHeadStyle = bg => `font-weight:800;font-size:10pt;color:#fff;text-align:center;padding:9px 6px;background:${bg};${isEle?"letter-spacing:1px;":""}`;
-  const seqBodyStyle = bgLt => `padding:9px 11px;min-height:120px;font-size:9pt;white-space:pre-wrap;line-height:1.6;background:${bgLt};`;
+  const seqCell = (bg, headColor, headText, body) => `
+    <td style="width:33.3%;vertical-align:top;padding:8px 12px;border:1px solid ${C.fieldBorder};background:${bg};">
+      <div style="text-align:center;font-weight:800;font-size:10.5pt;color:${headColor};margin-bottom:6px;">${headText}</div>
+      <div style="font-size:9pt;color:${C.value};white-space:pre-wrap;line-height:1.55;">${body}</div>
+    </td>`;
 
   const secSecuencia = `
 <table style="width:100%;border-collapse:collapse;margin-bottom:2px;table-layout:fixed;">
-  <tr><td colspan="3" style="${TH(C.seq)}">📚 Secuencia Didáctica</td></tr>
-  <tr><td colspan="3" style="background:${C.seq.lt};font-weight:700;font-size:9.5pt;padding:8px 14px;border:1px solid ${C.seq.bd};color:#1a2035;">📌 Nombre de la Actividad: <span style="font-weight:800;">${val(pl.nombreActividad)}</span></td></tr>
+  <tr><td colspan="3" style="${TH()}">SECUENCIA DIDÁCTICA</td></tr>
+  <tr><td colspan="3" style="background:${C.fieldFill};font-weight:700;font-size:9.5pt;padding:8px 14px;border:1px solid ${C.fieldBorder};color:${C.value};">Nombre de la Actividad: <span style="font-weight:800;">${val(pl.nombreActividad)}</span></td></tr>
 </table>
-<table style="width:100%;border-collapse:collapse;margin-bottom:14px;">
+<table style="width:100%;border-collapse:collapse;margin-bottom:14px;table-layout:fixed;">
   <tr>
-    <td style="width:33.3%;vertical-align:top;padding:0;border:1.5px solid #A9DFBF;">
-      <div style="${seqHeadStyle(C.ini)}">🟢 INICIO &nbsp;(~${minIni} min)</div>
-      <div style="${seqBodyStyle("#F9FFF9")}">${nl(pl.inicio||"")}</div>
-    </td>
-    <td style="width:33.3%;vertical-align:top;padding:0;border:1.5px solid #AED6F1;">
-      <div style="${seqHeadStyle(C.des)}">🔵 DESARROLLO &nbsp;(~${minDes} min)</div>
-      <div style="${seqBodyStyle("#F4F9FF")}">${nl(pl.desarrollo||"")}</div>
-    </td>
-    <td style="width:33.3%;vertical-align:top;padding:0;border:1.5px solid #F5B7B1;">
-      <div style="${seqHeadStyle(C.cie)}">🔴 CIERRE &nbsp;(~${minCie} min)</div>
-      <div style="${seqBodyStyle("#FFF9F9")}">${nl(pl.cierre||"")}</div>
-    </td>
+    ${seqCell(C.fieldFill, primary, `INICIO (~${minIni} min)`, nl(pl.inicio||""))}
+    ${seqCell(C.desFill, C.desColor, `DESARROLLO (~${minDes} min)`, nl(pl.desarrollo||""))}
+    ${seqCell(C.cierreFill, secondary, `CIERRE (~${minCie} min)`, nl(pl.cierre||""))}
   </tr>
 </table>`;
 
+  const firmaCell = (label, name, role) => `
+    <td style="padding:12px 8px;text-align:center;width:33.3%;border:1px solid ${C.fieldBorder};background:${C.fieldFill};">
+      <div style="font-weight:800;font-size:9pt;letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px;color:${secondary};">${label}</div>
+      <div style="height:44px;border-bottom:1.5px solid ${C.fieldBorder};margin:0 16px 5px;"></div>
+      <div style="font-weight:700;font-size:10pt;color:${C.value};">${val(name)}</div>
+      <div style="font-size:8.5pt;color:${C.meta};margin-top:2px;">${role}</div>
+    </td>`;
+
   const secFirmas = `
-<table style="width:100%;border-collapse:collapse;margin-top:20px;">
+<table style="width:100%;border-collapse:collapse;margin-bottom:6px;table-layout:fixed;">
+  <tr><td colspan="3" style="${TH()}">FIRMAS</td></tr>
+</table>
+<table style="width:100%;border-collapse:collapse;table-layout:fixed;">
   <tr>
-    <td style="padding:12px 8px;text-align:center;width:33.3%;border:1px solid #D5D8DC;">
-      <div style="font-weight:800;font-size:9pt;letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;color:${C.gen.bg};">ELABORÓ</div>
-      <div style="height:48px;border-bottom:1.5px solid #555;margin:0 16px 5px;"></div>
-      <div style="font-weight:700;font-size:10pt;">${val(pl.nombreElabora||pl.docente)}</div>
-      <div style="font-size:8.5pt;color:#777;margin-top:2px;">Docente</div>
-    </td>
-    <td style="padding:12px 8px;text-align:center;width:33.3%;border:1px solid #D5D8DC;">
-      <div style="font-weight:800;font-size:9pt;letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;color:${C.det.bg};">REVISÓ</div>
-      <div style="height:48px;border-bottom:1.5px solid #555;margin:0 16px 5px;"></div>
-      <div style="font-weight:700;font-size:10pt;">${val(pl.nombreSubdirector)}</div>
-      <div style="font-size:8.5pt;color:#777;margin-top:2px;">Subdirector(a) Académico(a)</div>
-    </td>
-    <td style="padding:12px 8px;text-align:center;width:33.3%;border:1px solid #D5D8DC;">
-      <div style="font-weight:800;font-size:9pt;letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;color:${C.prop.bg};">AUTORIZÓ</div>
-      <div style="height:48px;border-bottom:1.5px solid #555;margin:0 16px 5px;"></div>
-      <div style="font-weight:700;font-size:10pt;">${val(pl.nombreDirector)}</div>
-      <div style="font-size:8.5pt;color:#777;margin-top:2px;">Director(a)</div>
-    </td>
+    ${firmaCell("ELABORÓ", pl.nombreElabora||pl.docente, "Docente")}
+    ${firmaCell("REVISÓ", pl.nombreSubdirector, "Subdirector(a) Académico(a)")}
+    ${firmaCell("AUTORIZÓ", pl.nombreDirector, "Director(a)")}
   </tr>
 </table>`;
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Planeación — Planea Fácil</title>
 <style>
   * { box-sizing: border-box; }
-  body { font-family: ${bodyFont}; font-size: 10pt; color: #1a2035; margin: 1.5cm 1.8cm; }
+  body { font-family: ${bodyFont}; font-size: 10pt; color: ${C.value}; margin: 1cm 1.4cm; }
   table { border-collapse:collapse; }
   td, th { vertical-align:top; }
-  .divider { border:none; border-top:2px solid #E0E0E0; margin:10px 0 14px; }
-  @media print { @page { margin:1.4cm 1.8cm; } }
+  @media print { @page { size: landscape; margin: 1cm 1.4cm; } }
 </style>
 </head><body>
 
-${!isMod ? `<table style="width:100%;border-collapse:collapse;"><tr>${stripeBar}</tr></table>` : ""}
+<table style="width:100%;border-collapse:collapse;margin-bottom:12px;"><tr>${stripeBar}</tr></table>
 
 ${headerHtml}
-<hr class="divider"/>
 
 ${secGenerales}
 ${secDetalles}
@@ -815,11 +790,11 @@ ${secSecuencia}
 ${secRecursos}
 ${secFirmas}
 
-${!isMod ? `<table style="width:100%;border-collapse:collapse;margin-top:14px;"><tr>${stripeBar}</tr></table>` : `<hr class="divider"/>`}
-<div style="text-align:right;font-size:8pt;color:#aaa;margin-top:4px;">Planea Fácil &nbsp;·&nbsp; ${fecha}</div>
+<div style="text-align:center;font-size:8pt;color:${C.meta};margin-top:10px;">Planeación Académica &nbsp;·&nbsp; Planea Fácil &nbsp;·&nbsp; ${fecha}</div>
 
 </body></html>`;
 }
+
 
 
 
@@ -905,15 +880,19 @@ const DESIGN_SAMPLE_PLAN = {
 const DesignModal = ({ design, onSave, onClose }) => {
   const [d, setD] = useState({...DOC_DESIGN_DEFAULT, ...design, header:{...DOC_DESIGN_DEFAULT.header, ...(design&&design.header)}});
   const setHeader = (k,v) => setD(p => ({...p, header:{...p.header, [k]:v}}));
+  const pickTemplate = id => {
+    const t = DOC_TEMPLATES.find(x=>x.id===id);
+    setD(p => ({...p, template:id, primaryColor:t.primary, secondaryColor:t.secondary}));
+  };
   const html = React.useMemo(() => buildDocHtml(DESIGN_SAMPLE_PLAN, d), [d]);
 
   return (
     <div style={{position:"fixed", inset:0, background:"#00000077", zIndex:700, display:"flex", alignItems:"center", justifyContent:"center", padding:16}}>
-      <div style={{background:"#fff", borderRadius:18, width:"100%", maxWidth:1000, maxHeight:"94vh", overflow:"hidden", boxShadow:"0 20px 60px #0004", display:"flex", flexDirection:"column"}}>
+      <div style={{background:"#fff", borderRadius:18, width:"100%", maxWidth:1050, maxHeight:"94vh", overflow:"hidden", boxShadow:"0 20px 60px #0004", display:"flex", flexDirection:"column"}}>
         <div style={{background:"linear-gradient(135deg,#7d3c98,#0072BB)", color:"#fff", padding:"18px 24px", display:"flex", justifyContent:"space-between", alignItems:"center"}}>
           <div>
             <h2 style={{margin:0, fontSize:17, fontWeight:800}}>🎨 Diseño del Documento</h2>
-            <p style={{margin:"3px 0 0", fontSize:12, opacity:.85}}>Elige plantilla, color y qué datos mostrar — así se verá tu Word</p>
+            <p style={{margin:"3px 0 0", fontSize:12, opacity:.85}}>Elige plantilla, colores y qué datos mostrar — así se verá tu Word</p>
           </div>
           <button onClick={onClose} style={{background:"rgba(255,255,255,.2)", border:"none", color:"#fff", borderRadius:8, padding:"6px 12px", cursor:"pointer", fontSize:14}}>✕</button>
         </div>
@@ -924,27 +903,37 @@ const DesignModal = ({ design, onSave, onClose }) => {
             <p style={{fontWeight:700, fontSize:12, color:"#7d3c98", textTransform:"uppercase", letterSpacing:".5px", margin:"0 0 10px"}}>📐 Plantilla</p>
             <div style={{display:"flex", flexDirection:"column", gap:8, marginBottom:20}}>
               {DOC_TEMPLATES.map(t => (
-                <button key={t.id} onClick={()=>setD(p=>({...p, template:t.id}))}
-                  style={{textAlign:"left", padding:"10px 12px", borderRadius:10, cursor:"pointer",
+                <button key={t.id} onClick={()=>pickTemplate(t.id)}
+                  style={{textAlign:"left", padding:"10px 12px", borderRadius:10, cursor:"pointer", display:"flex", alignItems:"center", gap:10,
                     border: d.template===t.id ? "2px solid #7d3c98" : "1.5px solid #e0e0e0",
                     background: d.template===t.id ? "#f5eef8" : "#fff"}}>
-                  <div style={{fontWeight:700, fontSize:13, color: d.template===t.id ? "#7d3c98" : "#2c3e50"}}>{t.label}</div>
-                  <div style={{fontSize:11, color:"#888", marginTop:2}}>{t.desc}</div>
+                  <span style={{display:"flex", flexShrink:0}}>
+                    <span style={{width:12, height:22, background:t.primary, borderRadius:"3px 0 0 3px"}}></span>
+                    <span style={{width:12, height:22, background:t.secondary, borderRadius:"0 3px 3px 0"}}></span>
+                  </span>
+                  <span>
+                    <div style={{fontWeight:700, fontSize:13, color: d.template===t.id ? "#7d3c98" : "#2c3e50"}}>{t.label}</div>
+                    <div style={{fontSize:11, color:"#888", marginTop:2}}>{t.desc}</div>
+                  </span>
                 </button>
               ))}
             </div>
 
-            <p style={{fontWeight:700, fontSize:12, color:"#0072BB", textTransform:"uppercase", letterSpacing:".5px", margin:"0 0 10px"}}>🎨 Color</p>
-            <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:20}}>
-              <input type="color" value={d.accentColor} onChange={e=>setD(p=>({...p, accentColor:e.target.value}))}
-                style={{width:44, height:36, border:"1.5px solid #e0e0e0", borderRadius:8, cursor:"pointer", padding:2}} />
-              <input type="text" value={d.accentColor} onChange={e=>setD(p=>({...p, accentColor:e.target.value}))}
-                style={{...S, width:110}} />
-              <div style={{display:"flex", gap:5}}>
-                {["#1B6CA8","#117A65","#7D3C98","#B7410E","#1E4D7B","#922B21"].map(c=>(
-                  <button key={c} onClick={()=>setD(p=>({...p, accentColor:c}))} title={c}
-                    style={{width:20, height:20, borderRadius:"50%", background:c, border: d.accentColor===c?"2px solid #2c3e50":"1px solid #ccc", cursor:"pointer"}} />
-                ))}
+            <p style={{fontWeight:700, fontSize:12, color:"#0072BB", textTransform:"uppercase", letterSpacing:".5px", margin:"0 0 10px"}}>🎨 Colores</p>
+            <div style={{marginBottom:10}}>
+              <label style={{fontSize:11.5, color:"#7f8c8d", fontWeight:700, display:"block", marginBottom:4}}>Color Primario (barras y títulos)</label>
+              <div style={{display:"flex", alignItems:"center", gap:8}}>
+                <input type="color" value={d.primaryColor} onChange={e=>setD(p=>({...p, primaryColor:e.target.value}))}
+                  style={{width:40, height:32, border:"1.5px solid #e0e0e0", borderRadius:8, cursor:"pointer", padding:2}} />
+                <input type="text" value={d.primaryColor} onChange={e=>setD(p=>({...p, primaryColor:e.target.value}))} style={{...S, width:100}} />
+              </div>
+            </div>
+            <div style={{marginBottom:20}}>
+              <label style={{fontSize:11.5, color:"#7f8c8d", fontWeight:700, display:"block", marginBottom:4}}>Color Secundario (etiquetas y acentos)</label>
+              <div style={{display:"flex", alignItems:"center", gap:8}}>
+                <input type="color" value={d.secondaryColor} onChange={e=>setD(p=>({...p, secondaryColor:e.target.value}))}
+                  style={{width:40, height:32, border:"1.5px solid #e0e0e0", borderRadius:8, cursor:"pointer", padding:2}} />
+                <input type="text" value={d.secondaryColor} onChange={e=>setD(p=>({...p, secondaryColor:e.target.value}))} style={{...S, width:100}} />
               </div>
             </div>
 
@@ -2638,7 +2627,7 @@ function App() {
   const [plans, setPlans] = useCloudState("nes4_plans", []);
   const [exercises, setExercises] = useCloudState("nf_exercises", {});
   const [profile, setProfile] = useCloudState("nes4_profile", { docente:"", escuela:"", cct:"", zonaEscolar:"", municipio:"", estado:"", cicloEscolar:"2024-2025", nivelDefault:"Secundaria", nombreSubdirector:"", cargoSubdirector:"", nombreDirector:"", cargoDirector:"" });
-  const [design, setDesign] = useCloudState("nes4_design", { template:"clasico", accentColor:"#1B6CA8", header:{ escuela:true, zona:true, cct:true, ciclo:true } });
+  const [design, setDesign] = useCloudState("nes4_design", DOC_DESIGN_DEFAULT);
   const [customMaterias, setCustomMaterias] = useCloudState("nes4_customMaterias", []);
   const sync = useSyncStatus();
 
