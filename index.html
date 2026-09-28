@@ -54,6 +54,9 @@ const db = window.__pfDb;
 const NIVELES = { Secundaria:["1°","2°","3°"] };
 const ESCENARIOS = ["Aula","Escuela","Comunidad"];
 const GRUPOS = ["ABC","DEF","GHI"];
+// Una planeación puede tener varios grupos: se guardan como texto "ABC, DEF"
+const grupoList = g => String(g||"").split(/\s*,\s*/).map(x=>x.trim()).filter(Boolean);
+const fmtGrupos = g => { const l = grupoList(g).map(x=>'"'+x+'"'); return l.length<=1 ? (l[0]||"") : l.slice(0,-1).join(", ")+" y "+l[l.length-1]; };
 const BLOQUES = ["Bloque I","Bloque II","Bloque III","Bloque IV","Bloque V"];
 const TRIMESTRES = ["1er Trimestre","2do Trimestre","3er Trimestre"];
 const TIPOS = ["Proyecto de Aula","Proyecto Comunitario","Secuencia Didáctica","Situación Didáctica","Proyecto Interdisciplinario"];
@@ -643,7 +646,7 @@ function buildDocHtml(pl, design) {
   const val = v => (v||"").trim() || "—";
   const ejes = (pl.ejesArticuladores||[]).join("  ·  ") || "—";
   const fecha = new Date().toLocaleDateString("es-MX",{day:"2-digit",month:"long",year:"numeric"});
-  const nivelGradoGrupo = [pl.nivel, pl.grado, pl.grupo?'"'+pl.grupo+'"':""].filter(Boolean).join(" ");
+  const nivelGradoGrupo = [pl.grado, fmtGrupos(pl.grupo)].filter(Boolean).join(" ") || "—";
   const fmtDate = d => { if(!d) return "—"; try { return new Date(d+"T12:00:00").toLocaleDateString("es-MX",{day:"2-digit",month:"long",year:"numeric"}); } catch{return d;} };
   const minIni = pl.minInicio ?? 15, minDes = pl.minDesarrollo ?? 30, minCie = pl.minCierre ?? 10;
 
@@ -694,7 +697,16 @@ function buildDocHtml(pl, design) {
   if (pl.municipio||pl.estado) metaParts.push([pl.municipio,pl.estado].filter(Boolean).join(", "));
   if (hdrOn.ciclo) metaParts.push("Ciclo Escolar: "+val(pl.cicloEscolar));
 
-  const tituloPrincipal = (hdrOn.escuela && val(pl.escuela)!=="—") ? val(pl.escuela).toUpperCase() : "PLANEACIÓN DIDÁCTICA";
+  const nombreEscuela = (() => {
+    let n = val(pl.escuela).toUpperCase().replace(/^ESCUELA\s*:\s*/,"").trim();
+    if (!/^ESCUELA\b/.test(n)) {
+      if (!/SECUNDARIA|PRIMARIA|PREESCOLAR|BACHILLER|PREPARATORIA|TELESECUNDARIA/.test(n))
+        n = ((pl.nivel||"Secundaria")==="Secundaria" ? "SECUNDARIA GENERAL" : (pl.nivel||"").toUpperCase()) + " " + n;
+      n = "ESCUELA " + n;
+    }
+    return n.replace(/\s+/g," ").trim();
+  })();
+  const tituloPrincipal = (hdrOn.escuela && val(pl.escuela)!=="—") ? nombreEscuela : "PLANEACIÓN DIDÁCTICA";
   const asig = (pl.asignatura||"").trim();
   const lineaPlaneacion = `Planeación ${asig ? "de "+asig.toLowerCase()+" " : ""}por proyecto: &nbsp;<i>${val(pl.titulo||pl.contenidoSintetico)}</i>`;
 
@@ -706,7 +718,7 @@ ${metaParts.length ? `<p style="font-family:${bodyFont};font-size:9pt;color:${C.
   /* ── Secciones ── */
   const secGenerales = gridTable("DATOS GENERALES", [
     {label:"Docente", value:val(pl.docente), span:1},
-    {label:"Nivel / Grado / Grupo", value:nivelGradoGrupo, span:1},
+    {label:(grupoList(pl.grupo).length>1 ? "Grado / Grupos" : "Grado / Grupo"), value:nivelGradoGrupo, span:1},
     {label:"Bloque", value:val(pl.bloque), span:1},
     {label:"Trimestre", value:val(pl.trimestre), span:1},
     {label:"Semana / Sesiones", value:val(pl.semana), span:1},
@@ -1622,7 +1634,7 @@ const PrintModal = ({ p: plan, profile, design, setDesign, onClose }) => {
         <div style={{fontSize:42}}>🖨️</div>
         <h2 style={{margin:"8px 0 6px", color:"#0072BB"}}>Imprimir / Exportar</h2>
         <p style={{color:"#666", fontSize:13, marginBottom:6}}><b>"{p.titulo||"Sin título"}"</b></p>
-        <p style={{color:"#888", fontSize:12, marginBottom:22}}>{p.nivel} {p.grado} {p.grupo&&'"'+p.grupo+'"'} · {p.asignatura||p.campoFormativo||"—"}</p>
+        <p style={{color:"#888", fontSize:12, marginBottom:22}}>{p.grado} {fmtGrupos(p.grupo)} · {p.asignatura||p.campoFormativo||"—"}</p>
         <div style={{display:"flex", gap:10, justifyContent:"center", flexWrap:"wrap"}}>
           <button onClick={() => setPreview(true)} style={{padding:"10px 16px", background:"#2c3e50", color:"#fff", border:"none", borderRadius:8, cursor:"pointer", fontWeight:600, fontSize:13}}>👁️ Vista Previa</button>
           {setDesign && <button onClick={() => setEditDesign(true)} style={{padding:"10px 16px", background:"#7d3c98", color:"#fff", border:"none", borderRadius:8, cursor:"pointer", fontWeight:700, fontSize:13}}>🎨 Diseño</button>}
@@ -1714,7 +1726,7 @@ const PlanForm = ({ plan, onSave, onBack, onPrint, exercises }) => {
         <button onClick={onBack} style={{background:"rgba(255,255,255,.2)", border:"none", color:"#fff", borderRadius:7, padding:"6px 12px", cursor:"pointer", fontSize:12}}>← Volver</button>
         <div style={{flex:1}}>
           <div style={{color:"#fff", fontWeight:700, fontSize:14}}>{p.titulo||"Nueva Planeación"}</div>
-          <div style={{color:"rgba(255,255,255,.75)", fontSize:11}}>{p.nivel} {p.grado} {p.grupo&&'"'+p.grupo+'"'} {p.asignatura&&"· "+p.asignatura}</div>
+          <div style={{color:"rgba(255,255,255,.75)", fontSize:11}}>{p.nivel} {p.grado} {fmtGrupos(p.grupo)} {p.asignatura&&"· "+p.asignatura}</div>
         </div>
         <button onClick={() => onPrint(p)} style={{background:"rgba(255,255,255,.2)", border:"none", color:"#fff", borderRadius:7, padding:"7px 11px", cursor:"pointer", fontSize:13}}>🖨️</button>
         <button onClick={() => onPrint(p)} style={{background:"rgba(255,255,255,.2)", border:"none", color:"#fff", borderRadius:7, padding:"7px 11px", cursor:"pointer", fontSize:12}}>📄 Word</button>
@@ -1764,7 +1776,14 @@ const PlanForm = ({ plan, onSave, onBack, onPrint, exercises }) => {
           <Card>
             <Hdr icon="📅" title="Organización del Tiempo" color="#0072BB" />
             <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:14}}>
-              <Fld label="Grupo"><Sel v={p.grupo} set={v=>up("grupo",v)} opts={GRUPOS} /></Fld>
+              <Fld label="Grupo(s)" hint="Toca uno o varios grupos con el mismo tema">
+                {(() => {
+                  const sel = grupoList(p.grupo);
+                  const opts = [...GRUPOS, ...sel.filter(g=>!GRUPOS.includes(g))];
+                  return <Pills multi opts={opts} sel={sel}
+                    set={arr => up("grupo", [...arr].sort((a,b)=>opts.indexOf(a)-opts.indexOf(b)).join(", "))} />;
+                })()}
+              </Fld>
               <Fld label="Bloque"><Sel v={p.bloque} set={v=>up("bloque",v)} opts={BLOQUES} /></Fld>
               <Fld label="Trimestre"><Sel v={p.trimestre} set={v=>up("trimestre",v)} opts={TRIMESTRES} /></Fld>
               <Fld label="Fecha Inicio"><Inp type="date" v={p.fechaInicio} set={v=>up("fechaInicio",v)} /></Fld>
@@ -2780,7 +2799,7 @@ function App() {
                 </div>
                 <div style={{flex:1, minWidth:0}}>
                   <div style={{fontWeight:700, fontSize:14, color:"#0072BB", marginBottom:2}}>{p.titulo||"Sin título"}</div>
-                  <div style={{fontSize:12, color:"#7f8c8d"}}>{[p.nivel,p.grado&&p.grado+" Grado",p.grupo&&"Grupo \""+p.grupo+"\"",p.asignatura].filter(Boolean).join(" · ")}</div>
+                  <div style={{fontSize:12, color:"#7f8c8d"}}>{[p.nivel,p.grado&&p.grado+" Grado",p.grupo&&(grupoList(p.grupo).length>1?"Grupos ":"Grupo ")+fmtGrupos(p.grupo),p.asignatura].filter(Boolean).join(" · ")}</div>
                   <div style={{marginTop:4, display:"flex", flexWrap:"wrap", gap:4}}>
                     {p.escenario && <span style={{background:"#f0faf6", color:"#1e8449", fontSize:10, padding:"2px 8px", borderRadius:9, fontWeight:600, border:"1px solid #a9dfbf"}}>📍 {p.escenario}</span>}
                     {p.bloque && <span style={{background:"#eaf4fb", color:"#0072BB", fontSize:10, padding:"2px 8px", borderRadius:9, fontWeight:600}}>{p.bloque}</span>}
