@@ -53,7 +53,7 @@ const db = window.__pfDb;
 
 const NIVELES = { Secundaria:["1°","2°","3°"] };
 const ESCENARIOS = ["Aula","Escuela","Comunidad"];
-const GRUPOS = ["A","B","C","D","E","F","G","H","I"];
+const GRUPOS = ["ABC","DEF","GHI"];
 const BLOQUES = ["Bloque I","Bloque II","Bloque III","Bloque IV","Bloque V"];
 const TRIMESTRES = ["1er Trimestre","2do Trimestre","3er Trimestre"];
 const TIPOS = ["Proyecto de Aula","Proyecto Comunitario","Secuencia Didáctica","Situación Didáctica","Proyecto Interdisciplinario"];
@@ -355,7 +355,9 @@ const emptyPlan = (pr = {}) => ({
   instrumentosEvaluacion: "", criteriosEvaluacion: "", observaciones: "",
   nombreElabora: pr.docente || "",
   nombreSubdirector: pr.nombreSubdirector || "",
+  cargoSubdirector: pr.cargoSubdirector || "",
   nombreDirector: pr.nombreDirector || "",
+  cargoDirector: pr.cargoDirector || "",
   createdAt: new Date().toLocaleDateString("es-MX"),
 });
 
@@ -460,6 +462,7 @@ const Txt = ({ v, set, ph, rows=4 }) => (
 const Sel = ({ v, set, opts, ph }) => (
   <select value={v||""} onChange={e=>set(e.target.value)} style={{...S, color:v?"#2c3e50":"#95a5a6"}}>
     <option value="">{ph||"Seleccionar..."}</option>
+    {v && !opts.includes(v) && <option value={v}>{v}</option>}
     {opts.map(o => <option key={o} value={o}>{o}</option>)}
   </select>
 );
@@ -640,21 +643,28 @@ function buildDocHtml(pl, design) {
   const val = v => (v||"").trim() || "—";
   const ejes = (pl.ejesArticuladores||[]).join("  ·  ") || "—";
   const fecha = new Date().toLocaleDateString("es-MX",{day:"2-digit",month:"long",year:"numeric"});
-  const nivelGradoGrupo = [pl.nivel, pl.grado, pl.grupo?'"'+pl.grupo+'"':""].filter(Boolean).join("  ");
+  const nivelGradoGrupo = [pl.nivel, pl.grado, pl.grupo?'"'+pl.grupo+'"':""].filter(Boolean).join(" ");
   const fmtDate = d => { if(!d) return "—"; try { return new Date(d+"T12:00:00").toLocaleDateString("es-MX",{day:"2-digit",month:"long",year:"numeric"}); } catch{return d;} };
   const minIni = pl.minInicio ?? 15, minDes = pl.minDesarrollo ?? 30, minCie = pl.minCierre ?? 10;
 
   const bodyFont = "Arial, sans-serif";
 
+  /* Formato fijo: hoja CARTA VERTICAL (igual en Diseño, Imprimir/PDF y Word) */
+  const PAGE_MARGIN = "1cm 1.5cm 1.5cm 1.5cm";
+
+  /* Separador entre tablas (Word ignora margin-bottom en tablas, así queda igual en ambos) */
+  const GAP = `<p style="margin:0;font-size:5pt;line-height:9pt;">&nbsp;</p>`;
+
   /* Barra de sección a todo lo ancho */
-  const TH = () => `background:${primary};color:#fff;font-weight:700;font-size:11pt;padding:9px 14px;text-align:center;letter-spacing:.4px;border-radius:2px;`;
+  const TH = () => `background:${primary};color:#fff;font-weight:700;font-size:11pt;padding:9px 14px;text-align:center;letter-spacing:.4px;font-family:${bodyFont};`;
 
   /* Caja de campo (recuadro con etiqueta arriba y valor abajo) */
   const cellStyle = () => `vertical-align:top;padding:8px 12px;border:1px solid ${C.fieldBorder};background:${C.fieldFill};`;
-  const lblStyle = () => `font-size:8.5pt;font-weight:800;color:${secondary};text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px;`;
-  const valStyle = () => `font-size:9.5pt;color:${C.value};line-height:1.5;`;
+  const lblStyle = () => `font-size:8.5pt;font-weight:800;color:${secondary};text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px;font-family:${bodyFont};`;
+  const valStyle = () => `font-size:9.5pt;color:${C.value};line-height:1.5;font-family:${bodyFont};`;
 
-  const gridTable = (title, fields) => {
+  /* Tabla de 3 columnas; cols = anchos en % (como quedó en el formato Word) */
+  const gridTable = (title, fields, cols=[33.34,33.33,33.33]) => {
     let rows=[], cur=[], curSpan=0;
     fields.forEach(f => {
       const span = f.span||1;
@@ -662,36 +672,36 @@ function buildDocHtml(pl, design) {
       cur.push({...f, span}); curSpan += span;
     });
     if (cur.length) rows.push(cur);
-    const rowsHtml = rows.map(r => `<tr>${r.map(f=>
-      `<td colspan="${f.span}" style="${cellStyle()}"><div style="${lblStyle()}">${f.label}</div><div style="${valStyle()}">${f.value||"—"}</div></td>`
-    ).join("")}</tr>`).join("");
-    return `<table style="width:100%;border-collapse:collapse;margin-bottom:14px;table-layout:fixed;">
-      <colgroup><col style="width:33.34%;"/><col style="width:33.33%;"/><col style="width:33.33%;"/></colgroup>
-      <tr><td colspan="3" style="${TH()}">${title}</td></tr>
+    const rowsHtml = rows.map(r => { let ci=0; return `<tr>${r.map(f=>{
+      const w = cols.slice(ci, ci+f.span).reduce((a,b)=>a+b,0); ci += f.span;
+      return `<td colspan="${f.span}" width="${Math.round(w)}%" style="width:${w.toFixed(2)}%;${cellStyle()}"><div style="${lblStyle()}">${f.label}</div><div style="${valStyle()}">${f.value||"—"}</div></td>`;
+    }).join("")}</tr>`; }).join("");
+    return `<table width="100%" style="width:100%;border-collapse:collapse;table-layout:fixed;">
+      <colgroup>${cols.map(c=>`<col style="width:${c}%;"/>`).join("")}</colgroup>
+      <tr><td colspan="3" width="100%" style="${TH()}">${title}</td></tr>
       ${rowsHtml}
-    </table>`;
+    </table>${GAP}`;
   };
 
   // Franja superior: 5 tramos alternando primario/secundario
   const stripeColors = [primary, secondary, primary, secondary, primary];
-  const stripeBar = stripeColors.map(c=>`<td style="width:20%;background:${c};height:8px;padding:0;border:none;"></td>`).join("");
+  const stripeBar = stripeColors.map(c=>`<td width="20%" style="width:20%;background:${c};height:6pt;padding:0;border:none;font-size:2pt;line-height:2pt;">&nbsp;</td>`).join("");
 
-  /* ── Encabezado ── */
+  /* ── Encabezado (formato Word: escuela · datos · "Planeación de ... por proyecto") ── */
   const metaParts = [];
   if (hdrOn.cct) metaParts.push("CCT: "+val(pl.cct));
   if (hdrOn.zona) metaParts.push("Zona Escolar: "+val(pl.zonaEscolar));
   if (pl.municipio||pl.estado) metaParts.push([pl.municipio,pl.estado].filter(Boolean).join(", "));
   if (hdrOn.ciclo) metaParts.push("Ciclo Escolar: "+val(pl.cicloEscolar));
 
-  const tituloPrincipal = (hdrOn.escuela && val(pl.escuela)!=="—") ? ("ESCUELA: "+val(pl.escuela)) : "PLANEACIÓN DIDÁCTICA";
+  const tituloPrincipal = (hdrOn.escuela && val(pl.escuela)!=="—") ? val(pl.escuela).toUpperCase() : "PLANEACIÓN DIDÁCTICA";
+  const asig = (pl.asignatura||"").trim();
+  const lineaPlaneacion = `Planeación ${asig ? "de "+asig.toLowerCase()+" " : ""}por proyecto: &nbsp;<i>${val(pl.titulo||pl.contenidoSintetico)}</i>`;
 
   const headerHtml = `
-<div style="text-align:center;margin-bottom:10px;">
-  <p style="font-family:${bodyFont};font-size:9pt;font-weight:700;color:${secondary};letter-spacing:1px;text-transform:uppercase;margin:0 0 4px;">Nueva Escuela Mexicana · Plan 2022</p>
-  <p style="font-family:${bodyFont};font-size:17pt;font-weight:800;color:${C.title};margin:0 0 4px;">${tituloPrincipal}</p>
-  <p style="font-family:${bodyFont};font-size:9pt;font-style:italic;color:${C.meta};margin:0 0 6px;">${val(pl.titulo||pl.contenidoSintetico)}</p>
-  ${metaParts.length ? `<p style="font-size:9pt;color:${C.meta};margin:0;">${metaParts.join(" &nbsp;·&nbsp; ")}</p>` : ""}
-</div>`;
+<p style="font-family:${bodyFont};font-size:12pt;font-weight:700;color:${C.title};text-align:center;margin:10pt 0 3pt;line-height:115%;">${tituloPrincipal}</p>
+${metaParts.length ? `<p style="font-family:${bodyFont};font-size:9pt;color:${C.meta};text-align:center;margin:0;line-height:115%;">${metaParts.join(" &nbsp;·&nbsp; ")}</p>` : ""}
+<p style="font-family:${bodyFont};font-size:9pt;color:${C.meta};text-align:center;margin:0 0 8pt;line-height:115%;">${lineaPlaneacion}</p>`;
 
   /* ── Secciones ── */
   const secGenerales = gridTable("DATOS GENERALES", [
@@ -704,7 +714,7 @@ function buildDocHtml(pl, design) {
     {label:"Fechas", value:`${fmtDate(pl.fechaInicio)} al ${fmtDate(pl.fechaFin)}`, span:1},
     {label:"Escenario", value:val(pl.escenario), span:1},
     {label:"Tipo de Proyecto", value:val(pl.tipoProyecto), span:1},
-  ]);
+  ], [46,27,27]);
 
   const secDetalles = gridTable("DETALLES DE LA PLANEACIÓN", [
     {label:"Tema / Título de la Planeación", value:`<b>${val(pl.titulo||pl.contenidoSintetico)}</b>`, span:3},
@@ -715,7 +725,7 @@ function buildDocHtml(pl, design) {
     {label:"Metodología de Enseñanza", value:val(pl.metodologia), span:1},
     {label:"Problema del Entorno", value:val(pl.problemaEntorno), span:1},
     {label:"Ejes Articuladores", value:ejes, span:3},
-  ]);
+  ], [54,23,23]);
 
   const secPropositos = gridTable("PROPÓSITOS Y APRENDIZAJES ESPERADOS", [
     {label:"Propósito General", value:nl(pl.propositoGeneral), span:3},
@@ -731,56 +741,70 @@ function buildDocHtml(pl, design) {
     {label:"Observaciones Docentes", value:nl(pl.observaciones), span:1},
   ]);
 
-  const seqCell = (bg, headColor, headText, body) => `
-    <td style="width:33.3%;vertical-align:top;padding:8px 12px;border:1px solid ${C.fieldBorder};background:${bg};">
-      <div style="text-align:center;font-weight:800;font-size:10.5pt;color:${headColor};margin-bottom:6px;">${headText}</div>
-      <div style="font-size:9pt;color:${C.value};white-space:pre-wrap;line-height:1.55;">${body}</div>
+  const seqCell = (w, bg, headColor, headText, body) => `
+    <td width="${w}%" style="width:${w}%;vertical-align:top;padding:8px 12px;border:1px solid ${C.fieldBorder};background:${bg};">
+      <div style="text-align:center;font-weight:800;font-size:10.5pt;color:${headColor};margin-bottom:6px;font-family:${bodyFont};">${headText}</div>
+      <div style="font-size:9pt;color:${C.value};line-height:1.55;font-family:${bodyFont};">${body}</div>
     </td>`;
 
   const secSecuencia = `
-<table style="width:100%;border-collapse:collapse;margin-bottom:2px;table-layout:fixed;">
-  <tr><td colspan="3" style="${TH()}">SECUENCIA DIDÁCTICA</td></tr>
-  <tr><td colspan="3" style="background:${C.fieldFill};font-weight:700;font-size:9.5pt;padding:8px 14px;border:1px solid ${C.fieldBorder};color:${C.value};">Nombre de la Actividad: <span style="font-weight:800;">${val(pl.nombreActividad)}</span></td></tr>
+<table width="100%" style="width:100%;border-collapse:collapse;table-layout:fixed;">
+  <tr><td width="100%" style="${TH()}">SECUENCIA DIDÁCTICA</td></tr>
+  <tr><td width="100%" style="background:${C.fieldFill};font-weight:700;font-size:9.5pt;padding:8px 14px;border:1px solid ${C.fieldBorder};color:${C.value};font-family:${bodyFont};">Nombre de la Actividad: <span style="font-weight:800;">${val(pl.nombreActividad)}</span></td></tr>
 </table>
-<table style="width:100%;border-collapse:collapse;margin-bottom:14px;table-layout:fixed;">
+<table width="100%" style="width:100%;border-collapse:collapse;table-layout:fixed;">
+  <colgroup><col style="width:28%;"/><col style="width:36%;"/><col style="width:36%;"/></colgroup>
   <tr>
-    ${seqCell(C.fieldFill, primary, `INICIO (~${minIni} min)`, nl(pl.inicio||""))}
-    ${seqCell(C.desFill, C.desColor, `DESARROLLO (~${minDes} min)`, nl(pl.desarrollo||""))}
-    ${seqCell(C.cierreFill, secondary, `CIERRE (~${minCie} min)`, nl(pl.cierre||""))}
+    ${seqCell(28, C.fieldFill, primary, `INICIO (~${minIni} min)`, nl(pl.inicio||""))}
+    ${seqCell(36, C.desFill, C.desColor, `DESARROLLO (~${minDes} min)`, nl(pl.desarrollo||""))}
+    ${seqCell(36, C.cierreFill, secondary, `CIERRE (~${minCie} min)`, nl(pl.cierre||""))}
   </tr>
-</table>`;
+</table>${GAP}`;
 
   const firmaCell = (label, name, role) => `
-    <td style="padding:12px 8px;text-align:center;width:33.3%;border:1px solid ${C.fieldBorder};background:${C.fieldFill};">
-      <div style="font-weight:800;font-size:9pt;letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px;color:${secondary};">${label}</div>
-      <div style="height:44px;border-bottom:1.5px solid ${C.fieldBorder};margin:0 16px 5px;"></div>
-      <div style="font-weight:700;font-size:10pt;color:${C.value};">${val(name)}</div>
-      <div style="font-size:8.5pt;color:${C.meta};margin-top:2px;">${role}</div>
+    <td width="33%" style="width:33.33%;padding:9pt 6pt;text-align:center;vertical-align:top;border:1px solid ${C.fieldBorder};background:${C.fieldFill};height:47pt;">
+      <div style="font-weight:800;font-size:9pt;letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px;color:${secondary};font-family:${bodyFont};text-align:center;">${label}</div>
+      <div style="font-weight:700;font-size:9pt;color:${C.value};font-family:${bodyFont};text-align:center;">${val(name)}</div>
+      <div style="font-size:9pt;color:${C.meta};margin-top:2px;font-family:${bodyFont};text-align:center;">${role}</div>
     </td>`;
 
   const secFirmas = `
-<table style="width:100%;border-collapse:collapse;margin-bottom:6px;table-layout:fixed;">
-  <tr><td colspan="3" style="${TH()}">FIRMAS</td></tr>
-</table>
-<table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+<table width="100%" style="width:100%;border-collapse:collapse;table-layout:fixed;">
+  <tr><td width="100%" style="${TH()}">FIRMAS</td></tr>
+</table>${GAP}
+<table width="100%" style="width:100%;border-collapse:collapse;table-layout:fixed;">
   <tr>
     ${firmaCell("ELABORÓ", pl.nombreElabora||pl.docente, "Docente")}
-    ${firmaCell("REVISÓ", pl.nombreSubdirector, "Subdirector(a) Académico(a)")}
-    ${firmaCell("AUTORIZÓ", pl.nombreDirector, "Director(a)")}
+    ${firmaCell("REVISÓ", pl.nombreSubdirector, val(pl.cargoSubdirector)!=="—" ? pl.cargoSubdirector : "Subdirector encargado")}
+    ${firmaCell("AUTORIZÓ", pl.nombreDirector, val(pl.cargoDirector)!=="—" ? pl.cargoDirector : "Director(a)")}
   </tr>
 </table>`;
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Planeación — Planea Fácil</title>
+  return `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><meta name="ProgId" content="Word.Document"><title>Planeación — Planea Fácil</title>
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
 <style>
-  * { box-sizing: border-box; }
-  body { font-family: ${bodyFont}; font-size: 10pt; color: ${C.value}; margin: 1cm 1.4cm; }
+  @page WordSection1 { size:612.0pt 792.0pt; margin:${PAGE_MARGIN}; mso-header-margin:35.4pt; mso-footer-margin:35.4pt; mso-paper-source:0; }
+  div.WordSection1 { page:WordSection1; }
+  body { font-family: ${bodyFont}; font-size: 10pt; color: ${C.value}; margin:0; }
   table { border-collapse:collapse; }
   td, th { vertical-align:top; }
-  @media print { @page { size: landscape; margin: 1cm 1.4cm; } }
+  @media screen {
+    html { background:#e9edf2; }
+    body { padding:18px 0; }
+    div.WordSection1 { box-sizing:border-box; width:21.59cm; max-width:100%; min-height:27.94cm; margin:0 auto; padding:${PAGE_MARGIN}; background:#fff; box-shadow:0 2px 12px rgba(0,0,0,.18); }
+  }
+  @media print {
+    @page { size: letter portrait; margin: ${PAGE_MARGIN}; }
+    html, body { background:#fff; }
+    body { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  }
 </style>
-</head><body>
+</head><body lang="ES-MX">
+<div class="WordSection1">
 
-<table style="width:100%;border-collapse:collapse;margin-bottom:12px;"><tr>${stripeBar}</tr></table>
+<table width="100%" style="width:100%;border-collapse:collapse;"><tr>${stripeBar}</tr></table>
 
 ${headerHtml}
 
@@ -791,8 +815,9 @@ ${secSecuencia}
 ${secRecursos}
 ${secFirmas}
 
-<div style="text-align:center;font-size:8pt;color:${C.meta};margin-top:10px;">Planeación Académica &nbsp;·&nbsp; Planea Fácil &nbsp;·&nbsp; ${fecha}</div>
+<p style="text-align:center;font-family:${bodyFont};font-size:8pt;color:${C.meta};margin:10pt 0 0;">Planeación Académica &nbsp;·&nbsp; Planea Fácil &nbsp;·&nbsp; ${fecha}</p>
 
+</div>
 </body></html>`;
 }
 
@@ -872,7 +897,7 @@ const ProfileModal = ({ profile, onSave, onClose }) => {
 const DESIGN_SAMPLE_PLAN = {
   titulo:"Ejemplo de Planeación", docente:"Nombre del Docente", escuela:"Escuela Secundaria Ejemplo",
   cct:"15EES0001X", zonaEscolar:"Zona 014", municipio:"Municipio", estado:"Estado", cicloEscolar:"2024-2025",
-  nivel:"Secundaria", grado:"1°", grupo:"A", bloque:"Bloque I", trimestre:"1er Trimestre",
+  nivel:"Secundaria", grado:"1°", grupo:"ABC", bloque:"Bloque I", trimestre:"1er Trimestre",
   campoFormativo:"Lenguajes", asignatura:"Español", nombreActividad:"Actividad de ejemplo",
   inicio:"Encuadre y motivación...", desarrollo:"Desarrollo de la actividad...", cierre:"Cierre y reflexión...",
   minInicio:15, minDesarrollo:30, minCierre:10,
@@ -1542,9 +1567,16 @@ const PlantillaModal = ({ onApply, onClose }) => {
 };
 
 /* ── PRINT / PREVIEW MODAL ─────────────────────────────────────────────────── */
-const PrintModal = ({ p, design, setDesign, onClose }) => {
+const PrintModal = ({ p: plan, profile, design, setDesign, onClose }) => {
   const [preview, setPreview] = useState(false);
   const [editDesign, setEditDesign] = useState(false);
+  const pr = profile || {};
+  const p = {...plan,
+    nombreSubdirector: plan.nombreSubdirector || pr.nombreSubdirector || "",
+    cargoSubdirector:  plan.cargoSubdirector  || pr.cargoSubdirector  || "",
+    nombreDirector:    plan.nombreDirector    || pr.nombreDirector    || "",
+    cargoDirector:     plan.cargoDirector     || pr.cargoDirector     || "",
+  };
   const html = buildDocHtml(p, design);
 
   const doPrint = () => {
@@ -1899,6 +1931,9 @@ const PlanForm = ({ plan, onSave, onBack, onPrint, exercises }) => {
               <Fld label="Elaboró (Docente)"><Inp v={p.nombreElabora||p.docente} set={v=>up("nombreElabora",v)} ph="Nombre completo" /></Fld>
               <Fld label="Revisó (Subdirector/a)"><Inp v={p.nombreSubdirector} set={v=>up("nombreSubdirector",v)} ph="Nombre del/la Subdirector/a" /></Fld>
               <Fld label="Autorizó (Director/a)"><Inp v={p.nombreDirector} set={v=>up("nombreDirector",v)} ph="Nombre del/la Director/a" /></Fld>
+              <div></div>
+              <Fld label="Cargo de quien revisó"><Inp v={p.cargoSubdirector} set={v=>up("cargoSubdirector",v)} ph="Subdirector encargado" /></Fld>
+              <Fld label="Cargo de quien autorizó"><Inp v={p.cargoDirector} set={v=>up("cargoDirector",v)} ph="Director(a)" /></Fld>
             </div>
           </Card>
           <div style={{display:"flex", gap:10, justifyContent:"flex-end", paddingBottom:20, flexWrap:"wrap"}}>
@@ -2655,7 +2690,7 @@ function App() {
   if (current) return (
     <>
       <PlanForm plan={current} onSave={savePlan} onBack={() => setCurrent(null)} onPrint={setPrintTarget} exercises={exercises} />
-      {printTarget && <PrintModal p={printTarget} design={design} setDesign={setDesign} onClose={() => setPrintTarget(null)} />}
+      {printTarget && <PrintModal p={printTarget} profile={profile} design={design} setDesign={setDesign} onClose={() => setPrintTarget(null)} />}
       {showDesign && <DesignModal design={design} onSave={setDesign} onClose={() => setShowDesign(false)} />}
     </>
   );
@@ -2766,7 +2801,7 @@ function App() {
       {showProfile && <ProfileModal profile={profile} onSave={setProfile} onClose={() => setShowProfile(false)} />}
       {showDesign && <DesignModal design={design} onSave={setDesign} onClose={() => setShowDesign(false)} />}
       {showImportExport && <ImportExportModal plans={plans} onImport={setPlans} customMaterias={customMaterias} onCustomMateriasChange={setCustomMaterias} onClose={() => setShowImportExport(false)} />}
-      {printTarget && <PrintModal p={printTarget} design={design} setDesign={setDesign} onClose={() => setPrintTarget(null)} />}
+      {printTarget && <PrintModal p={printTarget} profile={profile} design={design} setDesign={setDesign} onClose={() => setPrintTarget(null)} />}
     </div>
   );
 }
